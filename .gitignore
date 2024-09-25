@@ -1,0 +1,8 @@
+*.swp
+*.swo
+
+Dockerfile
+
+src/cmake
+
+.local
