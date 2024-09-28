@@ -20,6 +20,7 @@ ABSL_FLAG(uint16_t, port, 50051, "Server port for the service");
 
 class kv_storeImpl final : public kv_store::Service {
 	Status get(ServerContext* context, const getReq* request, getResp* response) override {
+        std::cout << "servicing get() for client " << request->name() << std::endl;
 		std::cout << "server finding value for key: " << request->key() << std::endl;
 		// TODO: assign the correct status
 		// 0 : key is present
@@ -29,14 +30,18 @@ class kv_storeImpl final : public kv_store::Service {
         response->set_value(test);
 		response->set_status(0);
 		
+        std::cout << "completed servicing get() for client " << request->name() << std::endl;
 		return Status::OK;		
 	}
 	
 	Status put(ServerContext* context, const putReq* request, putResp* response) override {
+        std::cout << "servicing put() for client " << request->name() << std::endl;
+        std::cout << "servicing client " << request->name() << std::endl;
 		std::cout << "server adding key to database: " << request->key() << std::endl;
         std::string test = "This is a test string. If seen, put() call was successful";
 		response->set_old_value(test);
         response->set_status(0);
+        std::cout << "completed servicing put() for client " << request->name() << std::endl;
 		return Status::OK;
 	}
 };

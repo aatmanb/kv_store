@@ -1,7 +1,8 @@
 syntax = "proto3";
 
 message getReq {
-	string key = 1;
+    uint32 name = 1;
+	string key = 2;
 }
 
 message getResp {
@@ -10,8 +11,9 @@ message getResp {
 }
 
 message putReq {
-	string key = 1;
-	string value = 2;
+    uint32 name = 1;
+	string key = 2;
+	string value = 3;
 }
 
 message putResp {
