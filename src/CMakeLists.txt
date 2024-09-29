@@ -45,6 +45,9 @@ add_custom_command(
 # Include generated *.pb.h files
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
+# Enable -fPIC for all targets (especially important for shared libraries)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 # hw_grpc_proto
 add_library(hw_grpc_proto
   ${hw_grpc_srcs}
@@ -57,19 +60,64 @@ target_link_libraries(hw_grpc_proto
   ${_GRPC_GRPCPP}
   ${_PROTOBUF_LIBPROTOBUF})
 
-# Targets greeter_[async_](client|server)
-foreach(_target
-  client server)
-  #greeter_callback_client greeter_callback_server
-  #greeter_async_client greeter_async_client2 greeter_async_server)
-  add_executable(${_target} "${_target}.cc")
-  target_link_libraries(${_target}
-    hw_grpc_proto
-    absl::check
-    absl::flags
-    absl::flags_parse
-    absl::log
-    ${_REFLECTION}
-    ${_GRPC_GRPCPP}
-    ${_PROTOBUF_LIBPROTOBUF})
-endforeach()
+add_library(utils utils.cc)
+
+target_link_libraries(utils)
+
+# Create a library from client.cc
+add_library(739kv SHARED 739kv.cc client.cc)
+
+# Link necessary libraries to the 738kv
+target_link_libraries(739kv
+  utils
+  hw_grpc_proto
+  absl::check
+  absl::flags
+  absl::flags_parse
+  absl::log
+  ${_REFLECTION}
+  ${_GRPC_GRPCPP}
+  ${_PROTOBUF_LIBPROTOBUF})
+
+# Create the server executable
+add_executable(server server.cc)
+target_link_libraries(server
+  hw_grpc_proto
+  absl::check
+  absl::flags
+  absl::flags_parse
+  absl::log
+  ${_REFLECTION}
+  ${_GRPC_GRPCPP}
+  ${_PROTOBUF_LIBPROTOBUF})
+
+# Create the test executable and link it with the client library
+add_executable(test test.cc)
+target_link_libraries(test
+  utils
+  739kv  # Link the client library
+  hw_grpc_proto
+  absl::check
+  absl::flags
+  absl::flags_parse
+  absl::log
+  ${_REFLECTION}
+  ${_GRPC_GRPCPP}
+  ${_PROTOBUF_LIBPROTOBUF})
+
+## Targets greeter_[async_](client|server)
+#foreach(_target
+#  client server test)
+#  #greeter_callback_client greeter_callback_server
+#  #greeter_async_client greeter_async_client2 greeter_async_server)
+#  add_executable(${_target} "${_target}.cc")
+#  target_link_libraries(${_target}
+#    hw_grpc_proto
+#    absl::check
+#    absl::flags
+#    absl::flags_parse
+#    absl::log
+#    ${_REFLECTION}
+#    ${_GRPC_GRPCPP}
+#    ${_PROTOBUF_LIBPROTOBUF})
+#endforeach()
