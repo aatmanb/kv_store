@@ -1,6 +1,6 @@
 #pragma once
 
-#include <boost/thread.hpp>
+#include <mutex>
 
 namespace key_value_store {
     template<typename T>
@@ -14,7 +14,7 @@ namespace key_value_store {
 
         static inline T* get_instance() {
             if (!instance) {
-                boost::lock_guard<boost::mutex> lock;
+                std::lock_guard<std::mutex> lock {mtx};
                 if (!instance) {
                     instance = new T();
                 }
@@ -31,7 +31,7 @@ namespace key_value_store {
         Singleton() {}
 
     private:
-        static inline boost::mutex mtx;
+        static inline std::mutex mtx;
 
         static inline T* instance = nullptr; 
     };

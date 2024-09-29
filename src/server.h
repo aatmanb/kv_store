@@ -11,7 +11,7 @@
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/health_check_service_interface.h>
 
-#include "build/kv_store.grpc.pb.h"
+#include "kv_store.grpc.pb.h"
 
 ABSL_FLAG(uint16_t, port, 50051, "Server port for the service");
 

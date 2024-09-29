@@ -2,7 +2,7 @@
 
 #include "tsl/robin_map.h"
 #include <string>
-#include <boost/thread.hpp>
+#include <shared_mutex>
 
 namespace key_value_store {
     class Partition {
@@ -18,8 +18,6 @@ namespace key_value_store {
 
         std::string db_name;
 
-        boost::shared_mutex rw_mutex;
-
-        // boost::mutex write_mutex;
+        std::shared_mutex rw_mutex;
     };
 }

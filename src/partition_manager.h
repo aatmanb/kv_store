@@ -1,7 +1,7 @@
 #pragma once
 
-#include <data.h>
-#include <singleton.h>
+#include "data.h"
+#include "singleton.h"
 #include <memory>
 
 namespace key_value_store {
@@ -9,7 +9,7 @@ namespace key_value_store {
     friend class Singleton<PartitionManager>;
 
     public:
-        inline Partition* get_partition(std::string &key) {
+        inline Partition* get_partition(const std::string &key) {
             // TODO(): hash key
             // Get partition
             return nullptr;
@@ -20,10 +20,9 @@ namespace key_value_store {
 
         std::vector<std::unique_ptr<Partition>> partitions;
 
-        PartitionManager(int num_partitions): 
-                Singleton<PartitionManager>(),
-                num_partitions(num_partitions) {
-            for (int i=0; i<num_partitions; i++) {
+        PartitionManager():
+                Singleton<PartitionManager>() {
+            for (int i=0; i<4; i++) {
                 // TODO(): Construct db name for the partition and create it
                 // partitions.push_back
             }
