@@ -6,3 +6,5 @@ Dockerfile
 src/cmake
 
 .local
+src/build
+.vscode
