@@ -50,9 +50,9 @@ class client {
             return 0;
         }
 
-        int kv739_get(char *key, char *value) {
+        int kv739_get(const char *key, char *value) {
             //TODO
-            std::string key_str = charArrayToString(key);
+            std::string key_str(key);
             std::cout << "client: get() called with key: " << key_str << std::endl;
             getReq request;
             request.set_key(key_str);
@@ -67,9 +67,9 @@ class client {
             return response.status();
         }
 
-        int kv739_put(char *key, char *value, char *old_value) {
-            std::string key_str = charArrayToString(key);
-            std::string value_str = charArrayToString(value);
+        int kv739_put(const char *key, const char *value, char *old_value) {
+            std::string key_str(key);
+            std::string value_str(value);
             
             std::cout << "client: put" << "(" << key_str << ")" << ": " << value_str << std::endl;
             
@@ -94,7 +94,7 @@ class client {
 
 void runGetTest(std::string target_str) {
     std::cout << "----------- Start GetTest -------------" << std::endl;
-    char *test_key = "connection_test_key";
+    std::string test_key = "connection_test_key" + std::to_string(i);
     char *test_value = new char[value_max_len + 1];
     int status = -1; // Error by default
  
@@ -103,15 +103,15 @@ void runGetTest(std::string target_str) {
     client _client(
         grpc::CreateChannel(target_str, grpc::InsecureChannelCredentials()));
     
-    status = _client.kv739_get(test_key, test_value);
+    status = _client.kv739_get(test_key.c_str(), test_value);
     std::cout << "status: " << status << " " << "get" << "(" << test_key << ")" << ": " << test_value << std::endl;
     std::cout << "----------- End GetTest -------------" << std::endl;
 }
 
 void runPutTest(std::string target_str) {
     std::cout << "----------- Start PutTest -------------" << std::endl;
-    char *test_key = "connection_test_key";
-    char *test_value = "connection_test_value";
+    std::string test_key = "connection_test_key";
+    std::string test_value = "connection_test_value";
     char *old_value = new char[value_max_len + 1];
     int status = -1; // Error by default
  
@@ -121,7 +121,7 @@ void runPutTest(std::string target_str) {
         grpc::CreateChannel(target_str, grpc::InsecureChannelCredentials()));
     
     std::cout << "put" << "(" << test_key << ")" << ": " << test_value << std::endl;
-    status = _client.kv739_put(test_key, test_value, old_value);
+    status = _client.kv739_put(test_key.c_str(), test_value.c_str(), old_value);
     std::cout << "status: " << status << " " << "put" << "(" << test_key << ")" << ": " << old_value << std::endl;
     std::cout << "----------- End PutTest -------------" << std::endl;
 }
@@ -134,8 +134,8 @@ int main(int argc, char** argv) {
     // the argument "--target=" which is the only expected argument.
     std::string target_str = absl::GetFlag(FLAGS_target);
    
-    runGetTest(target_str); 
     runPutTest(target_str);
+    runGetTest(target_str); 
 
     return 0;
 }

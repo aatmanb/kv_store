@@ -73,3 +73,7 @@ foreach(_target
     ${_GRPC_GRPCPP}
     ${_PROTOBUF_LIBPROTOBUF})
 endforeach()
+
+add_library(sqlite3 ../external/sqlite3/sqlite3.c)
+target_include_directories(server PRIVATE ../external/sqlite3)
+target_link_libraries(server sqlite3)
