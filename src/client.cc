@@ -94,7 +94,7 @@ class client {
 
 void runGetTest(std::string target_str) {
     std::cout << "----------- Start GetTest -------------" << std::endl;
-    std::string test_key = "connection_test_key" + std::to_string(i);
+    std::string test_key = "connection_test_key";
     char *test_value = new char[value_max_len + 1];
     int status = -1; // Error by default
  

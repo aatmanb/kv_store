@@ -117,8 +117,6 @@ void runServer(uint16_t port) {
 }
 
 int main(int argc, char** argv) {
-  const char *db_name = "test.db";
-  DatabaseUtils &db = DatabaseUtils::get_instance(db_name);
   absl::ParseCommandLine(argc, argv);
   runServer(absl::GetFlag(FLAGS_port));
   return 0;
