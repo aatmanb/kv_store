@@ -9,14 +9,14 @@ namespace key_value_store {
         response->set_value(partition->get(request->key()));
         response->set_status(0);
 
-        return grpc::Status::ok();
+        return grpc::Status::OK;
     }
 
     grpc::Status kv_storeImpl::put(grpc::ServerContext* context, const putReq* request, putResp* response) {
         auto part_mgr = PartitionManager::get_instance();
         auto partition = part_mgr->get_partition(request->key());
         partition->put(request->key(), request->value());
-        return grpc::Status::ok();
+        return grpc::Status::OK;
     }
 
     void runServer(uint16_t port) {
@@ -25,14 +25,14 @@ namespace key_value_store {
         
         grpc::EnableDefaultHealthCheckService(true);
         grpc::reflection::InitProtoReflectionServerBuilderPlugin();
-        ServerBuilder builder;
+        grpc::ServerBuilder builder;
         // Listen on the given address without any authentication mechanism.
         builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
         // Register "service" as the instance through which we'll communicate with
         // clients. In this case it corresponds to an *synchronous* service.
         builder.RegisterService(&service);
         // Finally assemble the server.
-        std::unique_ptr<Server> server(builder.BuildAndStart());
+        std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
         std::cout << "Server listening on " << server_address << std::endl;
         
         // Wait for the server to shutdown. Note that some other thread must be

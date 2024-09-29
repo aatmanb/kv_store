@@ -19,7 +19,10 @@
 
 cmake_minimum_required(VERSION 3.8)
 
-project(kv_store C CXX)
+set(CMAKE_C_COMPILER /usr/bin/gcc-12)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 include(common.cmake)
 
@@ -44,6 +47,9 @@ add_custom_command(
 
 # Include generated *.pb.h files
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
+# Include tsl 
+include_directories("${PROJECT_SOURCE_DIR}/external")
+message(STATUS "Project root directory: ${PROJECT_SOURCE_DIR}")
 
 # hw_grpc_proto
 add_library(hw_grpc_proto
@@ -57,22 +63,40 @@ target_link_libraries(hw_grpc_proto
   ${_GRPC_GRPCPP}
   ${_PROTOBUF_LIBPROTOBUF})
 
+add_library(cs739_kvstore SHARED
+            server.h server.cpp 
+            client.cc data.h data.cpp 
+            singleton.h partition_manager.h)
+
+target_link_libraries(cs739_kvstore pthread hw_grpc_proto boost_thread
+                      absl::check absl::flags
+                      absl::flags_parse absl::log
+                      ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF})
+
+target_include_directories(cs739_kvstore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+
+add_executable(launcher_script main.cpp)
+
+target_link_libraries(launcher_script cs739_kvstore)
+
+add_dependencies(launcher_script cs739_kvstore)
 # Targets greeter_[async_](client|server)
-foreach(_target
-  client server)
-  #greeter_callback_client greeter_callback_server
-  #greeter_async_client greeter_async_client2 greeter_async_server)
-  add_executable(${_target} "${_target}.cc")
-  target_link_libraries(${_target}
-    hw_grpc_proto
-    absl::check
-    absl::flags
-    absl::flags_parse
-    absl::log
-    ${_REFLECTION}
-    ${_GRPC_GRPCPP}
-    ${_PROTOBUF_LIBPROTOBUF})
-endforeach()
+# foreach(_target
+#   client server)
+#   #greeter_callback_client greeter_callback_server
+#   #greeter_async_client greeter_async_client2 greeter_async_server)
+#   add_executable(${_target} "${_target}.cc")
+#   target_link_libraries(${_target}
+#     hw_grpc_proto
+#     absl::check
+#     absl::flags
+#     absl::flags_parse
+#     absl::log
+#     ${_REFLECTION}
+#     ${_GRPC_GRPCPP}
+#     ${_PROTOBUF_LIBPROTOBUF})
+# endforeach()
 
 add_library(sqlite3 ../external/sqlite3/sqlite3.c)
 target_include_directories(server PRIVATE ../external/sqlite3)
