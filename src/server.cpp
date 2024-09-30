@@ -2,20 +2,56 @@
 #include "data.h"
 #include "partition_manager.h"
 
+#define KV_KEY_ERROR -1
+#define KV_GET_FAILED 0
+#define KV_GET_SUCCESS 1
+
+#define MAX_KEY_LEN 128
+#define MAX_VALUE_LEN 2048
+
+#define KV_PUT_ERROR -1
+#define KV_UPDATE_SUCCESS 0
+#define KV_PUT_SUCCESS 1
+
 namespace key_value_store {
     grpc::Status kv_storeImpl::get(grpc::ServerContext* context, const getReq* request, getResp* response) {
+        // Sanity checks for get
+		if (request->key().length() > MAX_KEY_LEN) {
+			response->set_value ("");
+			response->set_status(KV_KEY_ERROR);
+			return grpc::Status::OK;
+		}
+        
         auto part_mgr = PartitionManager::get_instance();
         auto partition = part_mgr->get_partition(request->key());
-        response->set_value(partition->get(request->key()));
-        response->set_status(0);
+        auto value = partition->get(request->key());
+        response->set_value(value);
+        if (value == "") {
+            response->set_status(KV_GET_FAILED);
+        } else {
+            response->set_status(KV_GET_SUCCESS);
+        }
 
         return grpc::Status::OK;
     }
 
     grpc::Status kv_storeImpl::put(grpc::ServerContext* context, const putReq* request, putResp* response) {
+        // Sanity checks for key and value
+		if (request->key().length() > MAX_KEY_LEN || request->value().length() > MAX_VALUE_LEN) {
+			response->set_old_value("");
+			response->set_status(KV_PUT_ERROR);
+			return grpc::Status::OK;
+		}
+        
         auto part_mgr = PartitionManager::get_instance();
         auto partition = part_mgr->get_partition(request->key());
-        partition->put(request->key(), request->value());
+        auto old_value = partition->put(request->key(), request->value());
+        response->set_old_value(old_value);
+        if (old_value == "") {
+            response->set_status(KV_PUT_SUCCESS);
+        } else {
+            response->set_status(KV_UPDATE_SUCCESS);
+        }
         return grpc::Status::OK;
     }
 

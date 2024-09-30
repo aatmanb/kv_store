@@ -1,5 +1,6 @@
 #pragma once
 
+#include "dbutils.h"
 #include <iostream>
 #include <string>
 
@@ -17,6 +18,10 @@ ABSL_FLAG(uint16_t, port, 50051, "Server port for the service");
 
 namespace key_value_store {
     class kv_storeImpl final : public kv_store::Service {
+    private: 
+		const char *db_name = "test.db";
+		DatabaseUtils &db = DatabaseUtils::get_instance(db_name);
+
         grpc::Status get(grpc::ServerContext* context, const getReq* request, getResp* response) override;
 
         grpc::Status put(grpc::ServerContext* context, const putReq* request, putResp* response) override;

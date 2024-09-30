@@ -3,7 +3,7 @@
 #include <cstring>
 #include <iostream>
 #include "singleton.h"
-#include "../external/sqlite3/sqlite3.h"
+#include "sqlite3/sqlite3.h"
 
 #define DB_CREATE_FAIL 0
 #define DB_CREATE_SUCCESS 1

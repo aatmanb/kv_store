@@ -63,6 +63,8 @@ target_link_libraries(hw_grpc_proto
   ${_GRPC_GRPCPP}
   ${_PROTOBUF_LIBPROTOBUF})
 
+add_library(sqlite3 ../external/sqlite3/sqlite3.c)
+
 add_library(cs739_kvstore SHARED
             server.h server.cpp 
             client.cc data.h data.cpp 
@@ -70,34 +72,19 @@ add_library(cs739_kvstore SHARED
 
 target_link_libraries(cs739_kvstore pthread hw_grpc_proto boost_thread
                       absl::check absl::flags
-                      absl::flags_parse absl::log
+                      absl::flags_parse absl::log sqlite3
                       ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF})
+
 
 target_include_directories(cs739_kvstore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+target_include_directories(cs739_kvstore PRIVATE ${PROJECT_SOURCE_DIR}/external)
 
 add_executable(launcher_script main.cpp)
 
 target_link_libraries(launcher_script cs739_kvstore)
 
 add_dependencies(launcher_script cs739_kvstore)
-# Targets greeter_[async_](client|server)
-# foreach(_target
-#   client server)
-#   #greeter_callback_client greeter_callback_server
-#   #greeter_async_client greeter_async_client2 greeter_async_server)
-#   add_executable(${_target} "${_target}.cc")
-#   target_link_libraries(${_target}
-#     hw_grpc_proto
-#     absl::check
-#     absl::flags
-#     absl::flags_parse
-#     absl::log
-#     ${_REFLECTION}
-#     ${_GRPC_GRPCPP}
-#     ${_PROTOBUF_LIBPROTOBUF})
-# endforeach()
+add_dependencies(cs739_kvstore sqlite3)
 
-add_library(sqlite3 ../external/sqlite3/sqlite3.c)
-target_include_directories(server PRIVATE ../external/sqlite3)
-target_link_libraries(server sqlite3)
+# target_link_libraries(server sqlite3)

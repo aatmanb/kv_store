@@ -1,6 +1,7 @@
 #pragma once
 
-#include "../external/tsl/robin_map.h"
+#include "tsl/robin_map.h"
+#include "dbutils.h"
 #include <string>
 #include <shared_mutex>
 
@@ -11,7 +12,7 @@ namespace key_value_store {
 
         std::string get(const std::string &key) noexcept;
 
-        void put(const std::string &key, const std::string &value) noexcept;
+        std::string put(const std::string &key, const std::string &value) noexcept;
 
     private:
         tsl::robin_map<std::string, std::string> hash_map;
@@ -19,5 +20,7 @@ namespace key_value_store {
         std::string db_name;
 
         std::shared_mutex rw_mutex;
+
+        DatabaseUtils* db_utils;
     };
 }
