@@ -9,9 +9,11 @@
 char* stringToCharArray(const std::string& str) {
     // Allocate memory for the char array (+1 for the null terminator)
     char* charArray = new char[str.length() + 1];
-    
+
+    std::cout << str << std::endl;    
     // Copy the contents of the string into the char array
     std::strcpy(charArray, str.c_str());
+    std::cout << charArray << std::endl;    
     
     // Return the modifiable char array
     return charArray;
