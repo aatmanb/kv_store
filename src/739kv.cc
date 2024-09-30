@@ -13,7 +13,7 @@
 #include "739kv.h"
 
 bool verifyKey(const std::string s) {
-    if (s.length() > 128) return false;
+    if (s.length() > (key_max_len+1)) return false;
     
     for (char c: s) {
         // Ensure the character is printable ASCII and not '[' or ']'
@@ -27,7 +27,9 @@ bool verifyKey(const std::string s) {
 }
 
 bool verifyValue(std::string s) {
-    if (s.length() > 2048) return false;
+    if (s.length() > (value_max_len + 1)) {
+        return false;
+    }
 
     // Check each character in the string
     for (char c : s) {
@@ -44,27 +46,25 @@ bool verifyValue(std::string s) {
     return true;
 }
 
-int kv739_init(char *server_name) {
+int kv739_init(const std::string server_name) {
     if (client_instance != nullptr) {
-        std::cerr << "Client already initialized" << std::endl;
+        std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Client already initialized" << std::endl;
         return -1;
     }
 
-    std::string target_str = charArrayToString(server_name);
-
     try {
-        client_instance = new client(grpc::CreateChannel(target_str, grpc::InsecureChannelCredentials()));
+        client_instance = new client(grpc::CreateChannel(server_name, grpc::InsecureChannelCredentials()));
         return 0;
     }
     catch (const std::exception &e) {
-        std::cerr << "Initialization error: " << e.what() << std::endl;
+        std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Initialization error: " << e.what() << std::endl;
         return -1;
     }
 }
 
 int kv739_shutdown() {
     if (client_instance == nullptr) {
-        std::cerr << "Client not initialized" << std::endl;
+        std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Client not initialized" << std::endl;
         return -1;
     }
 
@@ -73,79 +73,82 @@ int kv739_shutdown() {
     return 0;
 }
 
-int kv739_get(char *key, char *value) {
-    std::cout << "[lib] get()" << key << std::endl;
+int kv739_get(const std::string key, std::string value) {
+    std::cout << __FILE__ << "[" << __LINE__ << "]" << "inside kv739_get()" << std::endl;
     int status = -1;
     
     if (client_instance == nullptr) {
-        std::cerr << "Client not initialized" << std::endl;
+        std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Client not initialized" << std::endl;
         return status;
     }
 
-    std::string key_str = charArrayToString(key);
-    std::string value_str;
-
-    if (!verifyKey(key_str)) {
-        std::cerr << "Invalid key: " << std::endl;
-        std::cerr << key_str << std::endl;
+    if (!verifyKey(key)) {
+        std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Invalid key: " << std::endl;
+        std::cerr << key << std::endl;
         return status;
     }
 
-    std::cout << "key: " << key_str << std::endl;
+    std::cout << __FILE__ << "[" << __LINE__ << "]" << "calling get()" << std::endl;
+    std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
     
     try {
-        status = client_instance->get(key_str, value_str);
+        status = client_instance->get(key, value);
     } catch (std::exception &e) {
-        std::cerr << "Could not perform get(): " << e.what() << std::endl;
+        std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Could not perform get(): " << e.what() << std::endl;
     }
-    std::cout << "[lib] response for get()" << std::endl;
-    std::cout << "key: " << key_str << std::endl;
-    std::cout << "value: " << value_str << std::endl;
+    std::cout << __FILE__ << "[" << __LINE__ << "]" << "response for get()" << std::endl;
+    std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
+    std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
     
-    strcpy(value, stringToCharArray(value_str));
+    //if (status == 0) {
+    //    std::cout << "status: " << status << std::endl;
+    //    strcpy(value, stringToCharArray(value));
+    //}
 
     return status;
 }
 
-int kv739_put(char *key, char *value, char *old_value) {
-    std::cout << "[lib] put()" << std::endl;
+int kv739_put(const std::string key, const std::string value, std::string old_value) {
+    std::cout << __FILE__ << "[" << __LINE__ << "]" << "inside kv739_put()" << std::endl;
     int status = -1;
     
     if (client_instance == nullptr) {
-        std::cerr << "Client not initialized" << std::endl;
+        std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Client not initialized" << std::endl;
         return status;
     }
 
-    std::string key_str = charArrayToString(key);
-    std::string value_str = charArrayToString(value);
-    std::string old_value_str;
-
-    if (!verifyKey(key_str)) {
-        std::cerr << "Invalid key: " << std::endl;
-        std::cerr << key_str << std::endl;
+    if (!verifyKey(key)) {
+        std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Invalid key: " << std::endl;
+        std::cerr << __FILE__ << "[" << __LINE__ << "]" << key << std::endl;
         return status;
     }
 
-    if (!verifyValue(value_str)) {
-        std::cerr << "Invalid value: " << std::endl;
-        std::cerr << value_str << std::endl;
+    if (!verifyValue(value)) {
+        std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Invalid value: " << std::endl;
+        std::cerr << __FILE__ << "[" << __LINE__ << "]" << value << std::endl;
         return status;
     }
 
-    std::cout << "key: " << key_str << std::endl;
-    std::cout << "value: " << value_str << std::endl;
+    std::cout << __FILE__ << "[" << __LINE__ << "]" << "calling put()" << std::endl;
+    std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
+    std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
 
     try {
-        status = client_instance->put(key_str, value_str, old_value_str);
+        status = client_instance->put(key, value, old_value);
     } catch (std::exception &e) {
-        std::cerr << "[lib] Could not perform put(): " << e.what() << std::endl;
+        std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Could not perform put(): " << e.what() << std::endl;
     }
     
-    std::cout << "[lib] response for put()" << std::endl;
-    std::cout << "key: " << key_str << std::endl;
-    std::cout << "old_value: " << old_value_str << std::endl;
-    
-    strcpy(old_value, stringToCharArray(old_value_str));    
+    std::cout << __FILE__ << "[" << __LINE__ << "]" << "response for put()" << std::endl;
+    std::cout << __FILE__ << "[" << __LINE__ << "]" << "status: " << status << std::endl; 
+    std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
+    std::cout << __FILE__ << "[" << __LINE__ << "]" << "old_value: " << old_value << std::endl;
+   
+    //TODO: uncomment this once server implement exceptions 
+    //if (status == 0) { // key was present in the database
+    //    std::cerr << "server return status 0" << std::endl; 
+    //    strcpy(old_value, stringToCharArray(old_value));
+    //}    
 
     return status;
 }

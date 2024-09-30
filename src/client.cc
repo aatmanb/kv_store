@@ -11,7 +11,6 @@
 #include <grpcpp/grpcpp.h>
 #include "kv_store.grpc.pb.h"
 #include "client.h"
-#include "client_utils.h"
 
 using grpc::Channel;
 using grpc::ClientContext;

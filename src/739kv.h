@@ -11,17 +11,16 @@
 #include <grpcpp/grpcpp.h>
 #include "kv_store.grpc.pb.h"
 #include "client.h"
-#include "client_utils.h"
 
 const uint16_t key_max_len = 128;
 const uint16_t value_max_len = 2048;
 
 client *client_instance = nullptr;
 
-bool verifyKey(char *str);
-bool verifyValue(char *str);
+bool verifyKey(const std::string s);
+bool verifyValue(const std::string s);
 
-int kv739_init(char *server_name);
+int kv739_init(const std::string server_name);
 int kv739_shutdown();
-int kv739_get(char *key, char *value);
-int kv739_put(char *key, char *value, char *old_value);
+int kv739_get(const std::string key, std::string value);
+int kv739_put(const std::string key, const std::string value, std::string old_value);

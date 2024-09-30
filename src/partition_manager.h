@@ -26,8 +26,7 @@ namespace key_value_store {
     private:
         std::vector<std::unique_ptr<Partition>> partitions;
 
-        PartitionManager():
-                Singleton<PartitionManager>() {
+        PartitionManager(): Singleton<PartitionManager>() {
             for (int i=0; i<NUM_PARTITIONS; i++) {
                 std::string db_name = DB_NAME_PREFIX + std::to_string(i) + DB_NAME_SUFFIX;
                 partitions.emplace_back(std::move(std::make_unique<Partition>(db_name)));

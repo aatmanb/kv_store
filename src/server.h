@@ -18,8 +18,10 @@
 
 namespace key_value_store {
     class kv_storeImpl final : public kv_store::Service {
+    public:
+        kv_storeImpl(char *db_name) : db_name(db_name) {}
     private: 
-		const char *db_name = "test.db";
+		char *db_name;
 		DatabaseUtils &db = DatabaseUtils::get_instance(db_name);
 
         grpc::Status get(grpc::ServerContext* context, const getReq* request, getResp* response) override;
@@ -27,5 +29,5 @@ namespace key_value_store {
         grpc::Status put(grpc::ServerContext* context, const putReq* request, putResp* response) override;
     };
 
-    void runServer(uint16_t port);
+    void runServer(uint16_t port, char *db_fname);
 }
