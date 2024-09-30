@@ -14,7 +14,7 @@ ABSL_FLAG(std::string, db_dir, "", "directory to store the database");
         std::cerr << "Database directory unkown" << std::endl;
         std::exit(1);
     }
-    key_value_store::runServer(absl::GetFlag(FLAGS_port), stringToCharArray(db_dir + "/test.db"));
+    key_value_store::runServer(absl::GetFlag(FLAGS_port), stringToCharArray(db_dir + "/"));
     return 0;
   }
 // }

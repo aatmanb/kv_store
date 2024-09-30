@@ -21,8 +21,7 @@ namespace key_value_store {
     public:
         kv_storeImpl(char *db_name) : db_name(db_name) {}
     private: 
-		char *db_name;
-		DatabaseUtils &db = DatabaseUtils::get_instance(db_name);
+	char *db_name;
 
         grpc::Status get(grpc::ServerContext* context, const getReq* request, getResp* response) override;
 

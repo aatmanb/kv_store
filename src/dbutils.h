@@ -15,28 +15,8 @@
 #define DB_UPDATE_SUCCESS 1
 
 namespace key_value_store {
-    class DatabaseUtils: public Singleton<DatabaseUtils> {
-        friend class Singleton<DatabaseUtils>;
-
+    class DatabaseUtils {
         public:
-            static DatabaseUtils& get_instance(const char *db_name) {
-                static DatabaseUtils dbUtils(db_name);
-                return dbUtils;
-            }
-
-            std::string put_value (const char *key, const char* value) {
-                return put_value_internal(key, value);
-            }
-
-            std::string get_value (const char *key) {
-                return get_value_internal(key);
-            }
-
-        private:
-            sqlite3 *kv_persist_store;
-            const char *file_name;
-            bool is_db_open = false;
-
             DatabaseUtils(const char *db_name) {
                 if (!is_db_open) {
                     file_name = db_name;
@@ -50,6 +30,24 @@ namespace key_value_store {
                     }
                 }
             }
+
+            std::string put_value (const char *key, const char* value) {
+                return put_value_internal(key, value);
+            }
+
+            std::string get_value (const char *key) {
+                return get_value_internal(key);
+            }
+
+            ~DatabaseUtils() {
+                sqlite3_close (kv_persist_store);
+            }
+
+
+        private:
+            sqlite3 *kv_persist_store;
+            const char *file_name;
+            bool is_db_open = false;
 
             int create_table() {
                 int retval;
@@ -132,10 +130,6 @@ namespace key_value_store {
                     retval = update_value (key, value);
                 }
                 return old_value;
-            }
-
-            ~DatabaseUtils() {
-                sqlite3_close (kv_persist_store);
             }
     };
 }
