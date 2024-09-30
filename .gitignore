@@ -8,3 +8,5 @@ src/cmake
 .local
 src/build
 .vscode
+
+db/
