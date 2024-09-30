@@ -27,7 +27,7 @@ if [ ! -d "$OUTPUT_DIR" ]; then
 fi
 
 # Navigate to the directory containing the binaries (two levels down)
-BIN_DIR="./cmake/build"  # Adjust this path based on your actual structure
+BIN_DIR="./src/cmake/build"  # Adjust this path based on your actual structure
 
 # Start the server in the background and redirect output to server.log
 $BIN_DIR/server > $OUTPUT_DIR/server.log 2>&1 &
