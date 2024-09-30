@@ -13,6 +13,7 @@ namespace key_value_store {
         {
             std::shared_lock<std::shared_mutex> read_lock {rw_mutex};
             if (hash_map.count(key)) {
+                std::cout << __FILE__ << "[" << __LINE__  <<"]" << "Reading from hash map\n";
                 return hash_map[key];
             }
             // Check DB

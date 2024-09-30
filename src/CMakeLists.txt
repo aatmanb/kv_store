@@ -65,26 +65,30 @@ target_link_libraries(hw_grpc_proto
 
 add_library(sqlite3 ../external/sqlite3/sqlite3.c)
 
-add_library(cs739_kvstore SHARED
+add_library(739kv SHARED
             server.h server.cpp 
-            client.cc data.h data.cpp 
-            singleton.h partition_manager.h)
+            data.h data.cpp dbutils.h
+            singleton.h partition_manager.h
+            client.h client.cc client_utils.h client_utils.cc
+            739kv.h 739kv.cc)
 
-target_link_libraries(cs739_kvstore pthread hw_grpc_proto boost_thread
+target_link_libraries(739kv pthread hw_grpc_proto boost_thread
                       absl::check absl::flags
                       absl::flags_parse absl::log sqlite3
                       ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF})
 
 
-target_include_directories(cs739_kvstore PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(739kv PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_include_directories(cs739_kvstore PRIVATE ${PROJECT_SOURCE_DIR}/external)
+target_include_directories(739kv PRIVATE ${PROJECT_SOURCE_DIR}/external)
 
-add_executable(launcher_script main.cpp)
+add_executable(server main.cpp)
 
-target_link_libraries(launcher_script cs739_kvstore)
+target_link_libraries(server 739kv)
 
-add_dependencies(launcher_script cs739_kvstore)
-add_dependencies(cs739_kvstore sqlite3)
+add_dependencies(server 739kv)
+add_dependencies(739kv sqlite3)
 
-# target_link_libraries(server sqlite3)
+add_executable(test test.cc)
+target_link_libraries(test 739kv)
+add_dependencies(test 739kv)
