@@ -3,6 +3,7 @@
 #include "tsl/robin_map.h"
 #include "dbutils.h"
 #include <string>
+#include <memory>
 #include <shared_mutex>
 
 namespace key_value_store {
@@ -21,6 +22,6 @@ namespace key_value_store {
 
         std::shared_mutex rw_mutex;
 
-        DatabaseUtils* db_utils;
+	std::unique_ptr<DatabaseUtils> db_utils;
     };
 }

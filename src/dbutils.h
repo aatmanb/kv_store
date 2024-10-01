@@ -22,10 +22,12 @@ namespace key_value_store {
                     file_name = db_name;
                     int retval = sqlite3_open(file_name, &kv_persist_store); 
                     is_db_open = (retval == SQLITE_OK);
+		    std::cout << "DB creation process is_db_open: " << is_db_open << " retval: " << retval << "\n";
                     if (!is_db_open) {
                         sqlite3_close(kv_persist_store);
                     } else {
                         // Retry if create table fails?
+			    std::cout << "Creating Table\n";
                         int create_status = create_table();
                     }
                 }
@@ -40,6 +42,7 @@ namespace key_value_store {
             }
 
             ~DatabaseUtils() {
+		std::cout << "DB connection closed prematurely\n";
                 sqlite3_close (kv_persist_store);
             }
 
@@ -58,7 +61,7 @@ namespace key_value_store {
                                                     "user_value text);";
                 retval = sqlite3_exec(kv_persist_store, create_table_sql, 0, 0, &errMsg);
                 if (retval != SQLITE_OK) {
-                    std::cout << "DB creation failed\n";
+                    std::cout << "DB creation failed\n" << errMsg;
                     sqlite3_free(errMsg);
                     return DB_CREATE_FAIL;
                 }
@@ -67,35 +70,38 @@ namespace key_value_store {
             }
 
             std::string get_value_internal (const char *key) {
-                sqlite3_stmt *_stmt;
+                sqlite3_stmt *get_stmt;
                 const std::string key_not_found = "";
-                const char *_key = "SELECT user_value FROM KV_STORE WHERE key = ?;";
-                std::cout << __FILE__ << "[" << __LINE__ << "]" << "get_value_interal" << std::endl;
-                std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
-                if (sqlite3_prepare_v2(kv_persist_store, _key, -1, &_stmt, NULL) != SQLITE_OK) {
-                    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to prepare SQL statement: " << sqlite3_errmsg(kv_persist_store) << std::endl;
+                const char *get_key = "SELECT user_value FROM KV_STORE WHERE user_key = ?;";
+                std::cout << __FILE__ << "[" << __LINE__ << "]" << " get_value_interal" << std::endl;
+                std::cout << __FILE__ << "[" << __LINE__ << "]" << " key: " << key << std::endl;
+                if (sqlite3_prepare_v2(kv_persist_store, get_key, -1, &get_stmt, NULL) != SQLITE_OK) {
+                    std::cout << __FILE__ << "[" << __LINE__ << "]" << "Failed to prepare SQL statement: " << sqlite3_errmsg(kv_persist_store) << std::endl;
                 }
                 
-                if (sqlite3_bind_text(_stmt, 1, key, -1, SQLITE_STATIC) != SQLITE_OK) {
-                    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to bind key: " << sqlite3_errmsg(kv_persist_store) << std::endl;
+                if (sqlite3_bind_text(get_stmt, 1, key, -1, SQLITE_STATIC) != SQLITE_OK) {
+                    std::cout << __FILE__ << "[" << __LINE__ << "]" << "Failed to bind key: " << sqlite3_errmsg(kv_persist_store) << std::endl;
                 }
                 
-                if (sqlite3_step(_stmt) != SQLITE_DONE) {
-                    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to get key: " << sqlite3_errmsg(kv_persist_store) << std::endl;
+                if (sqlite3_step(get_stmt) != SQLITE_ROW) {
+                    // std::cout << __FILE__ << "[" << __LINE__ << "]" << "Failed to get key: " << sqlite3_errmsg(kv_persist_store) << std::endl;
+		    std::cout << "Get value didn't find any row\n";
+		    sqlite3_finalize(get_stmt);
+		    return key_not_found;
                 }
                 
-                //int	retval = sqlite3_prepare_v2(kv_persist_store, get_key, -1, &get_stmt, NULL);
-                //retval = sqlite3_bind_text(get_stmt, 1, key, -1, SQLITE_STATIC);
-                //retval = sqlite3_step(get_stmt);
-                //if (retval != SQLITE_ROW) {
-                //    std::cout << "Get value didn't find any row\n"; 
-                //    sqlite3_finalize(get_stmt);
-                //    return key_not_found;
-                //} 
-                const char *value = reinterpret_cast <const char *> (sqlite3_column_text(_stmt, 0));
+                /* int	retval = sqlite3_prepare_v2(kv_persist_store, get_key, -1, &get_stmt, NULL);
+                retval = sqlite3_bind_text(get_stmt, 1, key, -1, SQLITE_STATIC);
+                retval = sqlite3_step(get_stmt);
+                if (retval != SQLITE_ROW) {
+                    std::cout << "Get value didn't find any row\n"; 
+                    sqlite3_finalize(get_stmt);
+                    return key_not_found;
+                } */
+                const char *value = reinterpret_cast <const char *> (sqlite3_column_text(get_stmt, 0));
                 std::string return_value (value);
                 std::cout << "Value returned from get(): " << value << "\n";
-                sqlite3_finalize(_stmt);
+                sqlite3_finalize(get_stmt);
                 return return_value;
             }
 

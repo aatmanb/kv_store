@@ -6,7 +6,7 @@ const std::string EMPTY_STRING = "";
 namespace key_value_store {
     Partition::Partition(std::string db_name): db_name(db_name) {
         // TODO(): How to handle errors?
-        auto db_utils = DatabaseUtils(db_name.c_str());
+        db_utils.reset(new DatabaseUtils(db_name.c_str()));
     }
 
     std::string Partition::get(const std::string &key) noexcept {
