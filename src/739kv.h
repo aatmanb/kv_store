@@ -15,7 +15,9 @@
 const uint16_t key_max_len = 128;
 const uint16_t value_max_len = 2048;
 
-const int timeout = 2;
+const int timeout = 2; // seconds
+const int wait_before_retry = 2; // seconds
+const uint16_t max_retry = 5;
 
 client *client_instance = nullptr;
 

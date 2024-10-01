@@ -52,7 +52,7 @@ sleep 1
 # Run the specified number of clients
 for (( i=1; i<=$1; i++ ))
 do
-  $BIN_DIR/test --name=$i --real=$TEST_DIR/data/real.csv --fake=$TEST_DIR/data/fake.csv >| "$OUTPUT_DIR/client$i.log" & # 2>&1 &
+  $BIN_DIR/test --id=$i --real=$TEST_DIR/data/real.csv --fake=$TEST_DIR/data/fake.csv >| "$OUTPUT_DIR/client$i.log" & # 2>&1 &
 done
 
 # Wait for all clients to finish

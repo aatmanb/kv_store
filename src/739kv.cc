@@ -100,11 +100,6 @@ int kv739_get(const std::string key, std::string &value) {
     std::cout << __FILE__ << "[" << __LINE__ << "]" << "response for get()" << std::endl;
     std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
     std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
-    
-    //if (status == 0) {
-    //    std::cout << "status: " << status << std::endl;
-    //    strcpy(value, stringToCharArray(value));
-    //}
 
     return status;
 }
@@ -145,11 +140,5 @@ int kv739_put(const std::string key, const std::string value, std::string &old_v
     std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
     std::cout << __FILE__ << "[" << __LINE__ << "]" << "old_value: " << old_value << std::endl;
    
-    //TODO: uncomment this once server implement exceptions 
-    //if (status == 0) { // key was present in the database
-    //    std::cerr << "server return status 0" << std::endl; 
-    //    strcpy(old_value, stringToCharArray(old_value));
-    //}    
-
     return status;
 }
