@@ -11,6 +11,9 @@
 #include <grpcpp/grpcpp.h>
 #include "kv_store.grpc.pb.h"
 #include "739kv.h"
+#include "client.h"
+
+client *client_instance = nullptr;
 
 bool verifyKey(const std::string s) {
     if (s.length() > (key_max_len+1)) return false;

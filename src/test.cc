@@ -15,8 +15,6 @@
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 
-#include <grpcpp/grpcpp.h>
-
 #include "739kv.h"
 
 ABSL_FLAG(std::string, target, "localhost:50051", "Server address");
