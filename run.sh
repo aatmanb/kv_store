@@ -46,6 +46,9 @@ $BIN_DIR/server --db_dir="$DB_DIR" >| $OUTPUT_DIR/server.log & #2>&1 &
 # Store the server process ID to kill it later if needed
 SERVER_PID=$!
 
+# wait for 1 sec before starting clients
+sleep 1
+
 # Run the specified number of clients
 for (( i=1; i<=$1; i++ ))
 do

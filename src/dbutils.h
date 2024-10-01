@@ -67,55 +67,107 @@ namespace key_value_store {
             }
 
             std::string get_value_internal (const char *key) {
-                sqlite3_stmt *get_stmt;
+                sqlite3_stmt *_stmt;
                 const std::string key_not_found = "";
-                const char *get_key = "SELECT user_value FROM KV_STORE where user_key = ?;";
-                int	retval = sqlite3_prepare_v2(kv_persist_store, get_key, -1, &get_stmt, NULL);
-                retval = sqlite3_bind_text(get_stmt, 1, key, -1, SQLITE_STATIC);
-                retval = sqlite3_step(get_stmt);
-                if (retval != SQLITE_ROW) {
-                    std::cout << "Get value didn't find any row\n"; 
-                    sqlite3_finalize(get_stmt);
-                    return key_not_found;
-                } 
-                const char *value = reinterpret_cast <const char *> (sqlite3_column_text(get_stmt, 0));
+                const char *_key = "SELECT user_value FROM KV_STORE WHERE key = ?;";
+                std::cout << __FILE__ << "[" << __LINE__ << "]" << "get_value_interal" << std::endl;
+                std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
+                if (sqlite3_prepare_v2(kv_persist_store, _key, -1, &_stmt, NULL) != SQLITE_OK) {
+                    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to prepare SQL statement: " << sqlite3_errmsg(kv_persist_store) << std::endl;
+                }
+                
+                if (sqlite3_bind_text(_stmt, 1, key, -1, SQLITE_STATIC) != SQLITE_OK) {
+                    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to bind key: " << sqlite3_errmsg(kv_persist_store) << std::endl;
+                }
+                
+                if (sqlite3_step(_stmt) != SQLITE_DONE) {
+                    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to get key: " << sqlite3_errmsg(kv_persist_store) << std::endl;
+                }
+                
+                //int	retval = sqlite3_prepare_v2(kv_persist_store, get_key, -1, &get_stmt, NULL);
+                //retval = sqlite3_bind_text(get_stmt, 1, key, -1, SQLITE_STATIC);
+                //retval = sqlite3_step(get_stmt);
+                //if (retval != SQLITE_ROW) {
+                //    std::cout << "Get value didn't find any row\n"; 
+                //    sqlite3_finalize(get_stmt);
+                //    return key_not_found;
+                //} 
+                const char *value = reinterpret_cast <const char *> (sqlite3_column_text(_stmt, 0));
                 std::string return_value (value);
                 std::cout << "Value returned from get(): " << value << "\n";
-                sqlite3_finalize(get_stmt);
+                sqlite3_finalize(_stmt);
                 return return_value;
             }
 
             int insert_value (const char *key, const char *value) {
-                sqlite3_stmt *insert_stmt;
-                const char *insert_key = "INSERT INTO KV_STORE VALUES (?, ?);";
-                int retval = sqlite3_prepare_v2(kv_persist_store, insert_key, -1, &insert_stmt, NULL);
-                retval = sqlite3_bind_text(insert_stmt, 1, key, -1, SQLITE_STATIC);
-                retval = sqlite3_bind_text(insert_stmt, 2, value, -1, SQLITE_STATIC);
-                retval = sqlite3_step(insert_stmt); 
-                if (retval != SQLITE_DONE) {
-                    std::cout << "Insert value: " << value << " failed for key: " << key << "\n";
-                    sqlite3_finalize(insert_stmt);
-                    return DB_INSERT_FAIL;
+                sqlite3_stmt *_stmt;
+                const char *_key = "INSERT INTO KV_STORE VALUES (?, ?);";
+                int retval;
+                std::cout << __FILE__ << "[" << __LINE__ << "]" << "inserting" << std::endl;
+                std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
+                std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
+                if (sqlite3_prepare_v2(kv_persist_store, _key, -1, &_stmt, NULL) != SQLITE_DONE) {
+                    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to prepare SQL statement" << std::endl;
                 }
+                
+                if (sqlite3_bind_text(_stmt, 1, key, -1, SQLITE_STATIC) != SQLITE_DONE) {
+                    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to bind key" << std::endl;
+                }
+                
+                if (sqlite3_bind_text(_stmt, 2, value, -1, SQLITE_STATIC) != SQLITE_DONE) {
+                    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to bind value" << std::endl;
+                }
+                
+                if (sqlite3_step(_stmt) != SQLITE_DONE) {
+                    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to insert key" << std::endl;
+                }
+                
+                //retval = sqlite3_bind_text(_stmt, 1, key, -1, SQLITE_STATIC);
+                //retval = sqlite3_bind_text(_stmt, 2, value, -1, SQLITE_STATIC);
+                //retval = sqlite3_step(_stmt); 
+                //if (retval != SQLITE_DONE) {
+                //    std::cout << "Insert value: " << value << " failed for key: " << key << "\n";
+                //    sqlite3_finalize(_stmt);
+                //    return DB_INSERT_FAIL;
+                //}
                 std::cout << "Insert value: " << value << " successful for key: " << key << "\n";
-                sqlite3_finalize(insert_stmt);
+                sqlite3_finalize(_stmt);
                 return DB_INSERT_SUCCESS;
             }
 
             int update_value (const char *key, const char *value) {
-                sqlite3_stmt *update_stmt;
-                const char *update_key = "UPDATE KV_STORE SET user_value = ? where user_key = ?;";
-                int retval = sqlite3_prepare_v2(kv_persist_store, update_key, -1, &update_stmt, NULL);
-                retval = sqlite3_bind_text(update_stmt, 1, value, -1, SQLITE_STATIC);
-                retval = sqlite3_bind_text(update_stmt, 2, key, -1, SQLITE_STATIC);
-                retval = sqlite3_step(update_stmt); 
-                if (retval != SQLITE_DONE) {
-                    std::cout << "Update value: " << value << " failed for key: " << key << "\n";
-                    sqlite3_finalize(update_stmt);
-                    return DB_UPDATE_FAIL;
+                sqlite3_stmt *_stmt;
+                const char *_key = "UPDATE KV_STORE SET user_value = ? where user_key = ?;";
+                int retval;
+                std::cout << __FILE__ << "[" << __LINE__ << "]" << "updating" << std::endl;
+                std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
+                std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
+                if (sqlite3_prepare_v2(kv_persist_store, _key, -1, &_stmt, NULL) != SQLITE_DONE) {
+                    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to prepare SQL statement" << std::endl;
                 }
+                
+                if (sqlite3_bind_text(_stmt, 1, value, -1, SQLITE_STATIC) != SQLITE_DONE) {
+                    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to bind value" << std::endl;
+                }
+                
+                if (sqlite3_bind_text(_stmt, 2, key, -1, SQLITE_STATIC) != SQLITE_DONE) {
+                    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to bind key" << std::endl;
+                }
+                
+                if (sqlite3_step(_stmt) != SQLITE_DONE) {
+                    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to update key" << std::endl;
+                }
+                //int retval = sqlite3_prepare_v2(kv_persist_store, _key, -1, &_stmt, NULL);
+                //retval = sqlite3_bind_text(_stmt, 1, value, -1, SQLITE_STATIC);
+                //retval = sqlite3_bind_text(_stmt, 2, key, -1, SQLITE_STATIC);
+                //retval = sqlite3_step(_stmt); 
+                //if (retval != SQLITE_DONE) {
+                //    std::cout << "Update value: " << value << " failed for key: " << key << "\n";
+                //    sqlite3_finalize(_stmt);
+                //    return DB_UPDATE_FAIL;
+                //}
                 std::cout << "Update value: " << value << " successful for key: " << key << "\n";
-                sqlite3_finalize(update_stmt);
+                sqlite3_finalize(_stmt);
                 return DB_UPDATE_SUCCESS;                
             }
 

@@ -74,7 +74,7 @@ int kv739_shutdown() {
     return 0;
 }
 
-int kv739_get(const std::string key, std::string value) {
+int kv739_get(const std::string key, std::string &value) {
     std::cout << __FILE__ << "[" << __LINE__ << "]" << "inside kv739_get()" << std::endl;
     int status = -1;
     
@@ -109,7 +109,7 @@ int kv739_get(const std::string key, std::string value) {
     return status;
 }
 
-int kv739_put(const std::string key, const std::string value, std::string old_value) {
+int kv739_put(const std::string key, const std::string value, std::string &old_value) {
     std::cout << __FILE__ << "[" << __LINE__ << "]" << "inside kv739_put()" << std::endl;
     int status = -1;
     
