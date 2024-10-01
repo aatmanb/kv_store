@@ -10,6 +10,7 @@
 #include <chrono>
 #include <thread>
 #include <cassert>
+#include <unordered_map>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
@@ -24,6 +25,8 @@ ABSL_FLAG(std::string, real, "", "path to real csv file");
 ABSL_FLAG(std::string, fake, "", "path to fake csv file"); 
 
 int id;
+
+std::unordered_map<std::string, std::string> overwritten_kv;
 
 void runGetTest(std::string target_str, uint16_t name) {
     printf("----------- [test] Start GetTest ------------\n");
@@ -94,6 +97,12 @@ void populateDB(std::string target_str, std::string fname) {
                 std::this_thread::sleep_for(std::chrono::seconds(wait_before_retry));
             }
         }
+        
+        if (status == 0) {
+            // There was an old value. This key is overwriting the old value.
+            // Add it to overwritten map
+            overwritten_kv.insert(std::make_pair(key, value));
+        }
     }
     kv739_shutdown();
 
@@ -150,6 +159,12 @@ void runCorrectnessTest(std::string target_str, std::string real, std::string fa
                 }
                 num_retry++;
                 std::this_thread::sleep_for(std::chrono::seconds(wait_before_retry));
+            }
+
+            if (auto search = overwritten_kv.find(key); search != overwritten_kv.end()) {
+                // If a key is was overwritten, use the latest value
+                std::cout << "encountered overwritten key" << std::endl;
+                correct_value = search->second;
             }
             if (correct_value != value) {
                 pass = false;
