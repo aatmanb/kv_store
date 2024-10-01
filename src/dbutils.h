@@ -112,15 +112,15 @@ namespace key_value_store {
                 std::cout << __FILE__ << "[" << __LINE__ << "]" << "inserting" << std::endl;
                 std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
                 std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
-                if (sqlite3_prepare_v2(kv_persist_store, _key, -1, &_stmt, NULL) != SQLITE_DONE) {
+                if (sqlite3_prepare_v2(kv_persist_store, _key, -1, &_stmt, NULL) != SQLITE_OK) {
                     std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to prepare SQL statement" << std::endl;
                 }
                 
-                if (sqlite3_bind_text(_stmt, 1, key, -1, SQLITE_STATIC) != SQLITE_DONE) {
+                if (sqlite3_bind_text(_stmt, 1, key, -1, SQLITE_STATIC) != SQLITE_OK) {
                     std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to bind key" << std::endl;
                 }
                 
-                if (sqlite3_bind_text(_stmt, 2, value, -1, SQLITE_STATIC) != SQLITE_DONE) {
+                if (sqlite3_bind_text(_stmt, 2, value, -1, SQLITE_STATIC) != SQLITE_OK) {
                     std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to bind value" << std::endl;
                 }
                 
@@ -131,7 +131,7 @@ namespace key_value_store {
                 //retval = sqlite3_bind_text(_stmt, 1, key, -1, SQLITE_STATIC);
                 //retval = sqlite3_bind_text(_stmt, 2, value, -1, SQLITE_STATIC);
                 //retval = sqlite3_step(_stmt); 
-                //if (retval != SQLITE_DONE) {
+                //if (retval != SQLITE_OK) {
                 //    std::cout << "Insert value: " << value << " failed for key: " << key << "\n";
                 //    sqlite3_finalize(_stmt);
                 //    return DB_INSERT_FAIL;
@@ -148,15 +148,15 @@ namespace key_value_store {
                 std::cout << __FILE__ << "[" << __LINE__ << "]" << "updating" << std::endl;
                 std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
                 std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
-                if (sqlite3_prepare_v2(kv_persist_store, _key, -1, &_stmt, NULL) != SQLITE_DONE) {
+                if (sqlite3_prepare_v2(kv_persist_store, _key, -1, &_stmt, NULL) != SQLITE_OK) {
                     std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to prepare SQL statement" << std::endl;
                 }
                 
-                if (sqlite3_bind_text(_stmt, 1, value, -1, SQLITE_STATIC) != SQLITE_DONE) {
+                if (sqlite3_bind_text(_stmt, 1, value, -1, SQLITE_STATIC) != SQLITE_OK) {
                     std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to bind value" << std::endl;
                 }
                 
-                if (sqlite3_bind_text(_stmt, 2, key, -1, SQLITE_STATIC) != SQLITE_DONE) {
+                if (sqlite3_bind_text(_stmt, 2, key, -1, SQLITE_STATIC) != SQLITE_OK) {
                     std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to bind key" << std::endl;
                 }
                 
@@ -167,7 +167,7 @@ namespace key_value_store {
                 //retval = sqlite3_bind_text(_stmt, 1, value, -1, SQLITE_STATIC);
                 //retval = sqlite3_bind_text(_stmt, 2, key, -1, SQLITE_STATIC);
                 //retval = sqlite3_step(_stmt); 
-                //if (retval != SQLITE_DONE) {
+                //if (retval != SQLITE_OK) {
                 //    std::cout << "Update value: " << value << " failed for key: " << key << "\n";
                 //    sqlite3_finalize(_stmt);
                 //    return DB_UPDATE_FAIL;
