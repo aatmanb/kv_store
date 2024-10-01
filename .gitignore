@@ -10,3 +10,5 @@ src/build
 .vscode
 
 db/
+
+test/data

@@ -119,6 +119,10 @@ void runCorrectnessTest(std::string target_str, std::string real, std::string fa
         return;
     }
 
+    std::cout << std::endl;
+    std::cout << "Testing real keys" << std::endl;
+    std::cout << std::endl;
+
     kv739_init(target_str); 
     while(std::getline(real_fp, line)) {
         std::stringstream ss(line);
@@ -157,6 +161,10 @@ void runCorrectnessTest(std::string target_str, std::string real, std::string fa
         }
     }
     
+    std::cout << std::endl;
+    std::cout << "Testing fake keys" << std::endl;
+    std::cout << std::endl;
+
     while(std::getline(fake_fp, line)) {
         std::stringstream ss(line);
         std::string part;

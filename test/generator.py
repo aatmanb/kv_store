@@ -27,12 +27,13 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--num_keys', type=int, default=10, help='number of key-value pairs to generate')
+    parser.add_argument('--num_keys', type=int, default=1000, help='number of key-value pairs to generate')
     parser.add_argument('--num_real_keys', type=int, default=50, help='percentage of real key-value pairs')
-    parser.add_argument('--real-fname', type=str, default='real.csv')
-    parser.add_argument('--fake-fname', type=str, default='fake.csv')
+    parser.add_argument('--real-fname', type=str, default='real')
+    parser.add_argument('--fake-fname', type=str, default='fake')
     parser.add_argument('--key-max-length', type=int, default=128)
-    parser.add_argument('--value-max-length', type=int, default=128)
+    parser.add_argument('--value-max-length', type=int, default=2048)
+    parser.add_argument('--num-clients', type=int, default=1)
 
     args = parser.parse_args()
 
@@ -40,9 +41,14 @@ if __name__ == "__main__":
     num_fake_keys = args.num_keys - num_real_keys
 
     data_dir = 'data/'
+    num_clients = args.num_clients
 
-    # write real kv pairs
-    writeKVPairs(data_dir+args.real_fname, num_real_keys, args.key_max_length, args.value_max_length)
+    for i in range(num_clients):
+        real_fname = data_dir + args.real_fname + str(i) + '.csv'
+        fake_fname = data_dir + args.fake_fname + str(i) + '.csv'
     
-    # write fake kv pairs
-    writeKVPairs(data_dir+args.fake_fname, num_fake_keys, args.key_max_length, args.value_max_length)
+        # write real kv pairs
+        writeKVPairs(real_fname, num_real_keys, args.key_max_length, args.value_max_length)
+        
+        # write fake kv pairs
+        writeKVPairs(fake_fname, num_fake_keys, args.key_max_length, args.value_max_length)
