@@ -16,12 +16,14 @@
 
 class client {
     public:
-        client(std::shared_ptr<grpc::Channel> channel);
+        client(std::shared_ptr<grpc::Channel> channel, int timeout);
 
         int get(std::string key, std::string &value);
         int put(std::string key, std::string value, std::string &old_value);
 
         uint16_t id;
+
+        int timeout;
 
     private:
         std::unique_ptr<kv_store::Stub> stub_;

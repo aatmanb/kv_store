@@ -15,6 +15,8 @@
 const uint16_t key_max_len = 128;
 const uint16_t value_max_len = 2048;
 
+const int timeout = 2;
+
 client *client_instance = nullptr;
 
 bool verifyKey(const std::string s);
