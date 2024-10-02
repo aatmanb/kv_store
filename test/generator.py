@@ -31,12 +31,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--num_keys', type=int, default=1000, help='number of key-value pairs to generate')
-    parser.add_argument('--num_real_keys', type=int, default=50, help='percentage of real key-value pairs')
+    parser.add_argument('--num_keys', type=int, default=10000, help='number of key-value pairs to generate')
+    parser.add_argument('--num_real_keys', type=int, default=80, help='percentage of real key-value pairs')
     parser.add_argument('--real-fname', type=str, default='real')
     parser.add_argument('--fake-fname', type=str, default='fake')
-    parser.add_argument('--key-max-length', type=int, default=128)
-    parser.add_argument('--value-max-length', type=int, default=2048)
+    parser.add_argument('--key-max-length', type=int, default=50)
+    parser.add_argument('--value-max-length', type=int, default=50)
     parser.add_argument('--num-clients', type=int, default=1)
 
     args = parser.parse_args()

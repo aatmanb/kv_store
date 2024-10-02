@@ -78,7 +78,7 @@ int kv739_shutdown() {
 }
 
 int kv739_get(const std::string key, std::string &value) {
-    std::cout << __FILE__ << "[" << __LINE__ << "]" << "inside kv739_get()" << std::endl;
+    //std::cout << __FILE__ << "[" << __LINE__ << "]" << "inside kv739_get()" << std::endl;
     int status = -1;
     
     if (client_instance == nullptr) {
@@ -101,14 +101,15 @@ int kv739_get(const std::string key, std::string &value) {
         std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Could not perform get(): " << e.what() << std::endl;
     }
     std::cout << __FILE__ << "[" << __LINE__ << "]" << "response for get()" << std::endl;
-    std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
+    std::cout << __FILE__ << "[" << __LINE__ << "]" << "status: " << status << std::endl; 
+    //std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
     std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
 
     return status;
 }
 
 int kv739_put(const std::string key, const std::string value, std::string &old_value) {
-    std::cout << __FILE__ << "[" << __LINE__ << "]" << "inside kv739_put()" << std::endl;
+    //std::cout << __FILE__ << "[" << __LINE__ << "]" << "inside kv739_put()" << std::endl;
     int status = -1;
     
     if (client_instance == nullptr) {
@@ -140,7 +141,7 @@ int kv739_put(const std::string key, const std::string value, std::string &old_v
     
     std::cout << __FILE__ << "[" << __LINE__ << "]" << "response for put()" << std::endl;
     std::cout << __FILE__ << "[" << __LINE__ << "]" << "status: " << status << std::endl; 
-    std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
+    //std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
     std::cout << __FILE__ << "[" << __LINE__ << "]" << "old_value: " << old_value << std::endl;
    
     return status;

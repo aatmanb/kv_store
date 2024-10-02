@@ -17,15 +17,15 @@
 namespace key_value_store {
     grpc::Status kv_storeImpl::get(grpc::ServerContext* context, const getReq* request, getResp* response) {
 
-	    std::cout << "GET CALLED!!\n";
+        std::cout << "GET CALLED!!\n";
         // Sanity checks for get
-	if (request->key().length() > MAX_KEY_LEN) {
-		response->set_value ("");
-		response->set_status(KV_FAILURE);
-		return grpc::Status::OK;
-	}
-        
-	std::cout << "Processing client get() request\n";
+        if (request->key().length() > MAX_KEY_LEN) {
+        	response->set_value ("");
+        	response->set_status(KV_FAILURE);
+        	return grpc::Status::OK;
+	    }
+            
+	    std::cout << "Processing client get() request\n";
         auto part_mgr = PartitionManager::get_instance();
         auto partition = part_mgr->get_partition(request->key());
         auto value = partition->get(request->key());
@@ -42,13 +42,13 @@ namespace key_value_store {
     grpc::Status kv_storeImpl::put(grpc::ServerContext* context, const putReq* request, putResp* response) {
 	    std::cout << "PUT CALLED!!\n";
         // Sanity checks for key and value
-	if (request->key().length() > MAX_KEY_LEN || request->value().length() > MAX_VALUE_LEN) {
-		response->set_old_value("");
-		response->set_status(KV_FAILURE);
-		return grpc::Status::OK;
-	}
-
-	std::cout << "Processing client put() request\n";
+        if (request->key().length() > MAX_KEY_LEN || request->value().length() > MAX_VALUE_LEN) {
+        	response->set_old_value("");
+        	response->set_status(KV_FAILURE);
+        	return grpc::Status::OK;
+        }
+        
+        std::cout << "Processing client put() request\n";
         auto part_mgr = PartitionManager::get_instance();
         auto partition = part_mgr->get_partition(request->key());
         auto old_value = partition->put(request->key(), request->value());
@@ -67,10 +67,10 @@ namespace key_value_store {
         
         auto part_mgr = PartitionManager::get_instance();
         
-	part_mgr->set_db_path_directory(db_fname);
-	part_mgr->create_partitions();
-
-	grpc::EnableDefaultHealthCheckService(true);
+        part_mgr->set_db_path_directory(db_fname);
+        part_mgr->create_partitions();
+        
+        grpc::EnableDefaultHealthCheckService(true);
         grpc::reflection::InitProtoReflectionServerBuilderPlugin();
         grpc::ServerBuilder builder;
         // Listen on the given address without any authentication mechanism.

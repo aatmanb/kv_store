@@ -3,7 +3,7 @@
 #include "server.h"
 #include "utils.h"
 
-ABSL_FLAG(uint16_t, port, 50051, "Server port for the service");
+ABSL_FLAG(uint16_t, port, 50505, "Server port for the service");
 ABSL_FLAG(std::string, db_dir, "", "directory to store the database");
 
 // namespace key_value_store {
