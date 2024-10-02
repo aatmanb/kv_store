@@ -1,5 +1,14 @@
 #!/bin/bash
 
+kill_clients() {
+    echo "Stopping clients ..."
+    for pid in "${client_pids[@]}"; do
+        kill "$pid" 2>/dev/null
+        wait "$pid" 2>/dev/null
+    done
+    echo "Clients stopped."
+}
+
 kill_server() { 
     if kill -0 "$SERVER_PID" 2>/dev/null; then
         echo "Stopping the server..."
@@ -12,6 +21,7 @@ kill_server() {
 # Function to clean up processes on exit
 cleanup() {
     kill_server
+    kill_clients
     exit
 }
 
@@ -69,7 +79,7 @@ SERVER_PID=$!
 echo "Server PID $SERVER_PID"
 
 # wait for 1 sec before starting clients
-sleep 5
+sleep 1
 
 client_pids=()
 
@@ -112,6 +122,7 @@ done
 echo "All clients have finished"
 
 # Optionally, you can stop the server if it's no longer needed
-cleanup
+kill_server
 
 echo "Exiting script."
+exit

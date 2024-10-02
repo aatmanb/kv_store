@@ -11,13 +11,14 @@
 #include <thread>
 #include <cassert>
 #include <unordered_map>
+#include <random>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 
 #include "739kv.h"
 
-ABSL_FLAG(std::string, target, "localhost:50505", "Server address");
+ABSL_FLAG(std::string, target, "localhost:9876", "Server address");
 ABSL_FLAG(int, id, -1, "Name of the server");
 ABSL_FLAG(std::string, real, "", "path to real csv file");
 ABSL_FLAG(std::string, fake, "", "path to fake csv file"); 
@@ -26,6 +27,8 @@ ABSL_FLAG(bool, crash_consistency_test, false, "True if running crash consistenc
 int id;
 
 std::unordered_map<std::string, std::string> overwritten_kv;
+std::unordered_map<std::string, std::string> db;
+std::vector<std::string> keys_populated;
 int num_keys_populated = 0;
 
 void runGetTest(std::string target_str, uint16_t name) {
@@ -55,24 +58,64 @@ void runPutTest(std::string target_str, uint16_t name) {
     printf("----------- [test] End PutTest ------------\n");
 }
 
-void populateDB(std::string target_str, std::string fname, bool crash_consistency_test) {
+int getKeyNumber(float skew_factor) {
+    assert(skew_factor >= 0);
+    assert(skew_factor <= 1);
+    int frequent_group_size = std::max(1, static_cast<int>(skew_factor * num_keys_populated));
+    int infrequent_group_size = num_keys_populated - frequent_group_size;
+
+    std::vector<int> frequent_group;
+    std::vector<int> infrequent_group;
+
+    for (int i = 0; i < frequent_group_size; ++i) {
+        frequent_group.push_back(i);
+    }
+
+    for (int i = frequent_group_size; i < num_keys_populated; ++i) {
+        infrequent_group.push_back(i);
+    }
+
+    // Initialize the random engine and distribution
+    std::random_device rd;  // Random seed
+    std::mt19937 gen(rd()); // Mersenne Twister random number engine
+    std::uniform_real_distribution<> dist(0.0, 1.0);
+
+    // Select the group based on the weighted probability (90% for frequent, 10% for infrequent)
+    double random_value = dist(gen);  // Generate a random value between 0 and 1
+    if (random_value < (1-skew_factor)) {  // 90% probability
+        // Choose a number from the frequent group
+        std::uniform_int_distribution<> dist_frequent(0, frequent_group.size() - 1);
+        return frequent_group[dist_frequent(gen)];
+    } else {
+        // Choose a number from the infrequent group
+        std::uniform_int_distribution<> dist_infrequent(0, infrequent_group.size() - 1);
+        return infrequent_group[dist_infrequent(gen)];
+    }
+}
+
+int populateDB(std::string target_str, std::string fname, bool crash_consistency_test) {
     printf("----------- [test] Start populateDB ------------\n");
     std::ifstream fp;
     std::string line;
     int status;
     int num_retry;
     bool abort = false;
+    int total_duration = 0;
+    int avg_duration = 0;
     num_keys_populated = 0;
 
     fp.open(fname);
 
     if (!fp.is_open()) {
         std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Error: couldn't open file " << fname << std::endl;
-        return;
+        std::exit(1);
     }
 
-    kv739_init(target_str); 
+    kv739_init(target_str);
     while(std::getline(fp, line)) {
+        std::chrono::high_resolution_clock::time_point start;
+        std::chrono::high_resolution_clock::time_point end;
+
         std::stringstream ss(line);
         std::string part;
         std::vector<std::string> row;
@@ -88,7 +131,11 @@ void populateDB(std::string target_str, std::string fname, bool crash_consistenc
         std::string value = row[1];
         std::string old_value;
         while (status == -1) {
+            // Record the start time
+            start = std::chrono::high_resolution_clock::now();
             status = kv739_put(key, value, old_value);
+            // Record the end time
+            end = std::chrono::high_resolution_clock::now();
 
             if (status == -1) {
                 std::cout << __FILE__ << "[" << __LINE__ << "]" << "Error: couldn't put() key into database" << std::endl;
@@ -111,6 +158,13 @@ void populateDB(std::string target_str, std::string fname, bool crash_consistenc
         if (!abort) {
             // Value which are written successfully in DB. Used for crash consistency test.
             num_keys_populated++;
+            db.insert(std::make_pair(key, value));
+            keys_populated.push_back(key);
+            
+            // Output the duration
+            // Calculate the duration in microseconds, milliseconds, or any other unit
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+            total_duration += duration.count();
  
             if (status == 0) {
                 // There was an old value. This key is overwriting the old value.
@@ -127,23 +181,35 @@ void populateDB(std::string target_str, std::string fname, bool crash_consistenc
 
     fp.close();
 
+    avg_duration = total_duration/num_keys_populated;
+
+    std::cout << "Populated " << num_keys_populated << " keys" << std::endl;
     printf("----------- [test] End populateDB ------------\n");
+    
+    return avg_duration;
 }
 
-void runCorrectnessTest(std::string target_str, std::string real, std::string fake, bool crash_consistency_test) {
+int runCorrectnessTest(std::string target_str, std::string real, std::string fake, bool crash_consistency_test) {
     printf("----------- [test] Start Correctess Test ------------\n");
     std::ifstream fp;
     std::string line;
     int status = -1;
     int num_retry = 0;
     bool pass = true;
-    int num_keys_read = 0;
+    int num_reads_performed = 0;
+    int num_reads_to_perform = num_keys_populated * 10;
+    int key_number;
+    int total_duration = 0;
+    int avg_duration = 0;
+    
+    std::chrono::high_resolution_clock::time_point start;
+    std::chrono::high_resolution_clock::time_point end;
 
     fp.open(real);
     
     if (!fp.is_open()) {
         std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Error: couldn't open file " << real << std::endl;
-        return;
+        std::exit(1);
     }
 
     std::cout << std::endl;
@@ -151,7 +217,10 @@ void runCorrectnessTest(std::string target_str, std::string real, std::string fa
     std::cout << std::endl;
 
     kv739_init(target_str); 
-    while(std::getline(fp, line)) {
+    //while(std::getline(fp, line)) {
+    for (num_reads_performed=0; num_reads_performed < num_reads_to_perform; num_reads_performed++) {
+        key_number = getKeyNumber(0.1);
+        
         std::stringstream ss(line);
         std::string part;
         std::vector<std::string> row;
@@ -163,11 +232,15 @@ void runCorrectnessTest(std::string target_str, std::string real, std::string fa
             row.push_back(part);
         }
 
-        std::string key = row[0];
-        std::string correct_value = row[1];
+        std::string key = keys_populated[key_number];
+        std::string correct_value = db.find(key) -> second;
+        //std::string key = row[0];
+        //std::string correct_value = row[1];
         std::string value;
         while (status == -1) {
+            start = std::chrono::high_resolution_clock::now();
             status = kv739_get(key, value);
+            end = std::chrono::high_resolution_clock::now();
 
             if (status == -1) {
                 std::cout << __FILE__ << "[" << __LINE__ << "]" << "Error: couldn't get() value from database" << std::endl;
@@ -182,6 +255,11 @@ void runCorrectnessTest(std::string target_str, std::string real, std::string fa
                 std::this_thread::sleep_for(std::chrono::seconds(wait_before_retry));
             }
             else {
+                // Output the duration
+                // Calculate the duration in microseconds, milliseconds, or any other unit
+                auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+                total_duration += duration.count();
+ 
                 if (auto search = overwritten_kv.find(key); search != overwritten_kv.end()) {
                     // If a key is was overwritten, use the latest value
                     std::cout << "encountered overwritten key" << std::endl;
@@ -196,16 +274,16 @@ void runCorrectnessTest(std::string target_str, std::string real, std::string fa
                 }
             }
         }
-        num_keys_read++;
-        if (num_keys_read == num_keys_populated) break;
     }
 
     fp.close();
 
+    avg_duration = total_duration / (num_reads_performed-1);
+
     fp.open(fake);    
     if (!fp.is_open()) {
         std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Error: couldn't open file " << fake << std::endl;
-        return;
+        std::exit(1);
     }
 
     std::cout << std::endl;
@@ -262,6 +340,8 @@ void runCorrectnessTest(std::string target_str, std::string real, std::string fa
     }
 
     printf("----------- [test] End Correctness Test ------------\n");
+
+    return avg_duration;
 } 
 
 int main(int argc, char** argv) {
@@ -288,11 +368,15 @@ int main(int argc, char** argv) {
 
     std::cout << "crash_consistency_test: " << crash_consistency_test << std::endl;
  
-    populateDB(target_str, real_fname, crash_consistency_test);
+    int populate_duration_1 = populateDB(target_str, real_fname, crash_consistency_test);
+    //int populate_duration_2 = populateDB(target_str, real_fname, crash_consistency_test);
 
-    runCorrectnessTest(target_str, real_fname, fake_fname, crash_consistency_test);
+    int read_duration = runCorrectnessTest(target_str, real_fname, fake_fname, crash_consistency_test);
     //runPutTest(target_str, name);
     //runGetTest(target_str, name); 
+
+    std::cout << "populate_duration_1: " << populate_duration_1 << " us" << std::endl;
+    std::cout << "read_duration: " << read_duration << " us" << std::endl;
 
     return 0;
 }
