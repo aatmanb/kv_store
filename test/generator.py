@@ -6,22 +6,26 @@ import string
 def genRandomString(length, characters):
     return ''.join(random.choice(characters) for _ in range(length))
 
-def genKey(max_length):
-    characters = string.ascii_letters + string.digits
-    length = random.randint(1, max_length)
+def genKey(max_length, real):
+    if real:
+        characters = string.ascii_uppercase + string.digits
+    else:
+        characters = string.ascii_lowercase + string.digits
+    
+    length = max_length #random.randint(1, max_length)
     return genRandomString(length, characters)
 
 def genValue(max_length):
     characters = string.ascii_letters + string.digits
-    length = random.randint(1, max_length)
+    length = max_length #random.randint(1, max_length)
     return genRandomString(length, characters)
 
-def writeKVPairs(fname, num_keys, key_max_length, value_max_length):
+def writeKVPairs(fname, num_keys, key_max_length, value_max_length, real):
     with open(fname, mode='w', newline='') as f:
         csv_writer = csv.writer(f)
         for i in range(num_keys):
             #csv_writer.writerow([genKey(key_max_length), genValue(value_max_length)])
-            f.write(genKey(key_max_length) + ',' + genValue(value_max_length) + '\n')
+            f.write(genKey(key_max_length, real) + ',' + genValue(value_max_length) + '\n')
 
 if __name__ == "__main__":
 
@@ -48,7 +52,7 @@ if __name__ == "__main__":
         fake_fname = data_dir + args.fake_fname + str(i) + '.csv'
     
         # write real kv pairs
-        writeKVPairs(real_fname, num_real_keys, args.key_max_length, args.value_max_length)
+        writeKVPairs(real_fname, num_real_keys, args.key_max_length, args.value_max_length, True)
         
         # write fake kv pairs
-        writeKVPairs(fake_fname, num_fake_keys, args.key_max_length, args.value_max_length)
+        writeKVPairs(fake_fname, num_fake_keys, args.key_max_length, args.value_max_length, False)
