@@ -7,7 +7,6 @@
 const std::string DB_NAME_PREFIX = "test";
 const std::string DB_NAME_SUFFIX = ".db";
 const int NUM_PARTITIONS = 16;
-const int NUM_PARTITIONS = 16;
 const int PRIME = 31;
 
 namespace key_value_store {

@@ -391,7 +391,7 @@ void run_performance_test(std::string target_str, int write_percentage=10) {
     std::vector<int64_t> read_times;
     std::vector<int64_t> write_times;
 
-    auto experiment_start = = std::chrono::high_resolution_clock::now();
+    auto experiment_start = std::chrono::high_resolution_clock::now();
 
     for (int i=0; i<num_ops; i++) {
         int random_value = dist(gen);
@@ -425,7 +425,7 @@ void run_performance_test(std::string target_str, int write_percentage=10) {
     auto experiment_end = std::chrono::high_resolution_clock::now();
     auto experiment_duration = std::chrono::duration_cast<std::chrono::milliseconds>(experiment_end - experiment_start).count(); 
 
-    float throughput = (num_ops * /*convert to seconds*/1000.0f/experiment_end);
+    float throughput = (num_ops * /*convert to seconds*/1000.0f/experiment_duration);
 
     std::cout << "Finished performance tests.....\n";
     std::cout << "No. of read failures: " << num_read_failures << "\n";
