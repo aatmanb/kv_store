@@ -11,14 +11,14 @@ namespace key_value_store {
 
     std::string Partition::get(const std::string &key) noexcept {
         {
-	    std::cout << "Partition: " << db_name << " get() operation\n";
+	    // std::cout << "Partition: " << db_name << " get() operation\n";
             std::shared_lock<std::shared_mutex> read_lock {rw_mutex};
             if (hash_map.count(key)) {
-                std::cout << "Partition: " << db_name << ". Reading from hash map\n";
+                // std::cout << "Partition: " << db_name << ". Reading from hash map\n";
                 return hash_map[key];
             }
             // Check DB
-	    std::cout << "Partition: " << db_name << ". get() using sqlite3\n";
+	    // std::cout << "Partition: " << db_name << ". get() using sqlite3\n";
             std::string value = db_utils->get_value(key.c_str());
             if (value != EMPTY_STRING) {
                 read_lock.unlock();
@@ -33,7 +33,7 @@ namespace key_value_store {
 
     std::string Partition::put(const std::string &key, const std::string &value) noexcept {
         {
-	    std::cout << "Partition: " << db_name << " put() operation\n";
+	    // std::cout << "Partition: " << db_name << " put() operation\n";
             std::unique_lock<std::shared_mutex> write_lock {rw_mutex};
             // Update hash map and db
             hash_map[key] = value;

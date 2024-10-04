@@ -12,6 +12,7 @@
 #include <cassert>
 #include <unordered_map>
 #include <random>
+#include <iomanip>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
@@ -22,7 +23,8 @@ ABSL_FLAG(std::string, target, "localhost:9876", "Server address");
 ABSL_FLAG(int, id, -1, "Name of the server");
 ABSL_FLAG(std::string, real, "", "path to real csv file");
 ABSL_FLAG(std::string, fake, "", "path to fake csv file"); 
-ABSL_FLAG(bool, crash_consistency_test, false, "True if running crash consistency test"); 
+// ABSL_FLAG(bool, crash_consistency_test, false, "True if running crash consistency test");
+ABSL_FLAG(int32_t, test_type, 1, "Type of test: 1 (for correctness), 2 (for crash consistency), 3 (for performance)");
 
 int id;
 
@@ -344,6 +346,110 @@ int runCorrectnessTest(std::string target_str, std::string real, std::string fak
     return avg_duration;
 } 
 
+template<typename T>
+T calc_percentile(std::vector<T> &arr, int num) {
+    int idx = int((num * (arr.size() - 1))/100);
+    return arr[idx];
+}
+
+std::string generate_random_value(std::uniform_int_distribution<> &dist_length, std::mt19937 &gen,
+        std::uniform_int_distribution<> &char_dist) {
+    int length = dist_length(gen);
+    std::string res;
+    for (int i=0; i<length; i++) {
+        res.push_back((char)('a' + char_dist(gen)));
+    }
+    return res;
+}
+
+void run_performance_test(std::string target_str, int write_percentage=10) {
+    const std::vector<int> percentiles = {50, 70, 90, 99};
+    int key_number;
+    int total_duration = 0;
+    int avg_duration = 0;
+    int num_ops = num_keys_populated * 20;
+    
+    std::chrono::high_resolution_clock::time_point start;
+    std::chrono::high_resolution_clock::time_point end;
+
+    kv739_init(target_str); 
+
+    // Initialize the random engine and distribution
+    std::random_device rd;  // Random seed
+    std::mt19937 gen(rd()); // Mersenne Twister random number engine
+    std::uniform_int_distribution<> dist(0, 99);
+    std::uniform_int_distribution<> dist_value_length(10, 2048);
+    std::uniform_int_distribution<> char_dist(0, 25);
+    std::string key, value, old_value;
+    int status;
+
+    int64_t total_write_time = 0ll;
+    int64_t total_read_time = 0ll;
+    int64_t num_read_failures = 0ll;
+    int64_t num_write_failures = 0ll;
+
+    std::vector<int64_t> read_times;
+    std::vector<int64_t> write_times;
+
+    auto experiment_start = = std::chrono::high_resolution_clock::now();
+
+    for (int i=0; i<num_ops; i++) {
+        int random_value = dist(gen);
+        key_number = getKeyNumber(0.1);
+        key = keys_populated[key_number];
+        if (random_value < write_percentage) {
+            // perform put
+            start = std::chrono::high_resolution_clock::now();
+            value = std::move(generate_random_value(dist_value_length, gen, char_dist));
+            status = kv739_put(key, value, old_value);
+            end = std::chrono::high_resolution_clock::now();
+            if (status != -1) {
+                total_write_time += std::chrono::duration_cast<std::chrono::microseconds>(end-start).count();
+                write_times.push_back(std::chrono::duration_cast<std::chrono::microseconds>(end-start).count());
+            } else {
+                num_write_failures++;
+            }
+        } else {
+            // perform get
+            start = std::chrono::high_resolution_clock::now();
+            status = kv739_get(key, value);
+            end = std::chrono::high_resolution_clock::now();
+            if (status != -1) {
+                total_read_time += std::chrono::duration_cast<std::chrono::microseconds>(end-start).count();
+                read_times.push_back(std::chrono::duration_cast<std::chrono::microseconds>(end-start).count());
+            } else {
+                num_read_failures++;
+            }
+        }
+    }
+    auto experiment_end = std::chrono::high_resolution_clock::now();
+    auto experiment_duration = std::chrono::duration_cast<std::chrono::milliseconds>(experiment_end - experiment_start).count(); 
+
+    float throughput = (num_ops * /*convert to seconds*/1000.0f/experiment_end);
+
+    std::cout << "Finished performance tests.....\n";
+    std::cout << "No. of read failures: " << num_read_failures << "\n";
+    std::cout << "No. of write failures: " << num_write_failures << "\n";
+    std::cout << "Percentage of writes: " << write_percentage << "\n";
+
+    sort(read_times.begin(), read_times.end());
+    sort(write_times.begin(), write_times.end());
+
+    std::cout << "Read times:\n";
+    for (int i: percentiles) {
+        std::cout << i << "th percentile: " << calc_percentile<>(read_times, i) << "\n";
+    }
+    std::cout << "................................\n";
+
+    std::cout << "Write times:\n";
+    for (int i: percentiles) {
+        std::cout << i << "th percentile: " << calc_percentile<>(write_times, i) << "\n";
+    }
+    std::cout << "................................\n\n";
+    std::cout << std::setprecision(2);
+    std::cout << "Throughput: " << throughput << "\n";
+}
+
 int main(int argc, char** argv) {
     absl::ParseCommandLine(argc, argv);
 
@@ -364,19 +470,25 @@ int main(int argc, char** argv) {
     std::string target_str = absl::GetFlag(FLAGS_target);
     std::string real_fname = absl::GetFlag(FLAGS_real);
     std::string fake_fname = absl::GetFlag(FLAGS_fake);
-    bool crash_consistency_test = absl::GetFlag(FLAGS_crash_consistency_test);
+    // bool crash_consistency_test = absl::GetFlag(FLAGS_crash_consistency_test);
+    int32_t test_type = absl::GetFlag(FLAGS_test_type);
 
-    std::cout << "crash_consistency_test: " << crash_consistency_test << std::endl;
- 
+    bool crash_consistency_test = (test_type == 2);
+    bool performance_test = (test_type == 3);
     int populate_duration_1 = populateDB(target_str, real_fname, crash_consistency_test);
-    //int populate_duration_2 = populateDB(target_str, real_fname, crash_consistency_test);
 
-    int read_duration = runCorrectnessTest(target_str, real_fname, fake_fname, crash_consistency_test);
-    //runPutTest(target_str, name);
-    //runGetTest(target_str, name); 
+    if (performance_test) {
+        std::cout << "Starting performance test......";
+        run_performance_test(target_str, 10);
+    } else {
+        std::cout << "crash_consistency_test: " << crash_consistency_test << std::endl;
+        int read_duration = runCorrectnessTest(target_str, real_fname, fake_fname, crash_consistency_test);
+        //runPutTest(target_str, name);
+        //runGetTest(target_str, name); 
 
-    std::cout << "populate_duration_1: " << populate_duration_1 << " us" << std::endl;
-    std::cout << "read_duration: " << read_duration << " us" << std::endl;
+        std::cout << "populate_duration_1: " << populate_duration_1 << " us" << std::endl;
+        std::cout << "read_duration: " << read_duration << " us" << std::endl;
+    }
 
     return 0;
 }

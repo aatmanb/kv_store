@@ -92,21 +92,52 @@ int kv739_get(const std::string key, std::string &value) {
         return status;
     }
 
-    std::cout << __FILE__ << "[" << __LINE__ << "]" << "calling get()" << std::endl;
-    std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
+    // std::cout << __FILE__ << "[" << __LINE__ << "]" << "calling get()" << std::endl;
+    // std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
     
     try {
         status = client_instance->get(key, value);
     } catch (std::exception &e) {
         std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Could not perform get(): " << e.what() << std::endl;
     }
-    std::cout << __FILE__ << "[" << __LINE__ << "]" << "response for get()" << std::endl;
-    std::cout << __FILE__ << "[" << __LINE__ << "]" << "status: " << status << std::endl; 
+    // std::cout << __FILE__ << "[" << __LINE__ << "]" << "response for get()" << std::endl;
+    // std::cout << __FILE__ << "[" << __LINE__ << "]" << "status: " << status << std::endl; 
     //std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
-    std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
+    // std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
 
     return status;
 }
+
+// int kv739_get_with_duration(const std::string key, std::string &value) {
+//     //std::cout << __FILE__ << "[" << __LINE__ << "]" << "inside kv739_get()" << std::endl;
+//     int status = -1;
+    
+//     if (client_instance == nullptr) {
+//         std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Client not initialized" << std::endl;
+//         return status;
+//     }
+
+//     if (!verifyKey(key)) {
+//         std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Invalid key: " << std::endl;
+//         std::cerr << key << std::endl;
+//         return status;
+//     }
+
+//     std::cout << __FILE__ << "[" << __LINE__ << "]" << "calling get()" << std::endl;
+//     std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
+    
+//     try {
+//         status = client_instance->get(key, value);
+//     } catch (std::exception &e) {
+//         std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Could not perform get(): " << e.what() << std::endl;
+//     }
+//     std::cout << __FILE__ << "[" << __LINE__ << "]" << "response for get()" << std::endl;
+//     std::cout << __FILE__ << "[" << __LINE__ << "]" << "status: " << status << std::endl; 
+//     //std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
+//     std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
+
+//     return status;
+// }
 
 int kv739_put(const std::string key, const std::string value, std::string &old_value) {
     //std::cout << __FILE__ << "[" << __LINE__ << "]" << "inside kv739_put()" << std::endl;
@@ -129,9 +160,9 @@ int kv739_put(const std::string key, const std::string value, std::string &old_v
         return status;
     }
 
-    std::cout << __FILE__ << "[" << __LINE__ << "]" << "calling put()" << std::endl;
-    std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
-    std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
+    // std::cout << __FILE__ << "[" << __LINE__ << "]" << "calling put()" << std::endl;
+    // std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
+    // std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
 
     try {
         status = client_instance->put(key, value, old_value);
@@ -139,10 +170,10 @@ int kv739_put(const std::string key, const std::string value, std::string &old_v
         std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Could not perform put(): " << e.what() << std::endl;
     }
     
-    std::cout << __FILE__ << "[" << __LINE__ << "]" << "response for put()" << std::endl;
-    std::cout << __FILE__ << "[" << __LINE__ << "]" << "status: " << status << std::endl; 
+    // std::cout << __FILE__ << "[" << __LINE__ << "]" << "response for put()" << std::endl;
+    // std::cout << __FILE__ << "[" << __LINE__ << "]" << "status: " << status << std::endl; 
     //std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
-    std::cout << __FILE__ << "[" << __LINE__ << "]" << "old_value: " << old_value << std::endl;
+    // std::cout << __FILE__ << "[" << __LINE__ << "]" << "old_value: " << old_value << std::endl;
    
     return status;
 }

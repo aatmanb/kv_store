@@ -37,7 +37,7 @@ fi
 ROOT_DIR=$(pwd)
 SRC_DIR=$ROOT_DIR/src
 TEST_DIR=$ROOT_DIR/test
-BIN_DIR="$SRC_DIR/cmake/build"
+BIN_DIR="$ROOT_DIR/build/src"
 DB_DIR="$ROOT_DIR/db"
 
 NUM_CLIENTS=$1
@@ -89,10 +89,16 @@ for (( i=0; i<$NUM_CLIENTS; i++ ))
 do
     args="--id=$i --real=$TEST_DIR/data/real$i.csv --fake=$TEST_DIR/data/fake$i.csv"
     if [[ "$TEST_TYPE" == "--crash-consistency-test" ]]; then
-        args="$args --crash_consistency_test=true"
+        args="$args --test_type=2"
+    elif [[ "$TEST_TYPE" == "--performance-test" ]]; then
+        args="$args --test_type=3"
+    else
+        args="$args --test_type=1"
+        args="$args --test_type=1"
     fi
     echo "Starting client $i"
     echo "$args"
+    echo $BIN_DIR
     $BIN_DIR/test $args >| "$OUTPUT_DIR/client$i.log" 2>&1 &
     client_pids+=($!)
 done

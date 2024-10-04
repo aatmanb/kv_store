@@ -73,8 +73,8 @@ namespace key_value_store {
                 sqlite3_stmt *get_stmt;
                 const std::string key_not_found = "";
                 const char *get_key = "SELECT user_value FROM KV_STORE WHERE user_key = ?;";
-                std::cout << __FILE__ << "[" << __LINE__ << "]" << " get_value_interal" << std::endl;
-                std::cout << __FILE__ << "[" << __LINE__ << "]" << " key: " << key << std::endl;
+                // std::cout << __FILE__ << "[" << __LINE__ << "]" << " get_value_interal" << std::endl;
+                // std::cout << __FILE__ << "[" << __LINE__ << "]" << " key: " << key << std::endl;
                 if (sqlite3_prepare_v2(kv_persist_store, get_key, -1, &get_stmt, NULL) != SQLITE_OK) {
                     std::cout << __FILE__ << "[" << __LINE__ << "]" << "Failed to prepare SQL statement: " << sqlite3_errmsg(kv_persist_store) << std::endl;
                 }
@@ -85,7 +85,7 @@ namespace key_value_store {
                 
                 if (sqlite3_step(get_stmt) != SQLITE_ROW) {
                     // std::cout << __FILE__ << "[" << __LINE__ << "]" << "Failed to get key: " << sqlite3_errmsg(kv_persist_store) << std::endl;
-		    std::cout << "Get value didn't find any row\n";
+		    // std::cout << "Get value didn't find any row\n";
 		    sqlite3_finalize(get_stmt);
 		    return key_not_found;
                 }
@@ -100,7 +100,7 @@ namespace key_value_store {
                 } */
                 const char *value = reinterpret_cast <const char *> (sqlite3_column_text(get_stmt, 0));
                 std::string return_value (value);
-                std::cout << "Value returned from get(): " << value << "\n";
+                // std::cout << "Value returned from get(): " << value << "\n";
                 sqlite3_finalize(get_stmt);
                 return return_value;
             }
@@ -109,9 +109,9 @@ namespace key_value_store {
                 sqlite3_stmt *_stmt;
                 const char *_key = "INSERT INTO KV_STORE VALUES (?, ?);";
                 int retval;
-                std::cout << __FILE__ << "[" << __LINE__ << "]" << "inserting" << std::endl;
-                std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
-                std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
+                // std::cout << __FILE__ << "[" << __LINE__ << "]" << "inserting" << std::endl;
+                // std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
+                // std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
                 if (sqlite3_prepare_v2(kv_persist_store, _key, -1, &_stmt, NULL) != SQLITE_OK) {
                     std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to prepare SQL statement" << std::endl;
                 }
@@ -136,7 +136,7 @@ namespace key_value_store {
                 //    sqlite3_finalize(_stmt);
                 //    return DB_INSERT_FAIL;
                 //}
-                std::cout << "Insert value: " << value << " successful for key: " << key << "\n";
+                // std::cout << "Insert value: " << value << " successful for key: " << key << "\n";
                 sqlite3_finalize(_stmt);
                 return DB_INSERT_SUCCESS;
             }
@@ -145,9 +145,9 @@ namespace key_value_store {
                 sqlite3_stmt *_stmt;
                 const char *_key = "UPDATE KV_STORE SET user_value = ? where user_key = ?;";
                 int retval;
-                std::cout << __FILE__ << "[" << __LINE__ << "]" << "updating" << std::endl;
-                std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
-                std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
+                // std::cout << __FILE__ << "[" << __LINE__ << "]" << "updating" << std::endl;
+                // std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
+                // std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
                 if (sqlite3_prepare_v2(kv_persist_store, _key, -1, &_stmt, NULL) != SQLITE_OK) {
                     std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Failed to prepare SQL statement" << std::endl;
                 }
@@ -172,7 +172,7 @@ namespace key_value_store {
                 //    sqlite3_finalize(_stmt);
                 //    return DB_UPDATE_FAIL;
                 //}
-                std::cout << "Update value: " << value << " successful for key: " << key << "\n";
+                // std::cout << "Update value: " << value << " successful for key: " << key << "\n";
                 sqlite3_finalize(_stmt);
                 return DB_UPDATE_SUCCESS;                
             }
