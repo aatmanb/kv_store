@@ -47,6 +47,11 @@ TEST_TYPE=$3
 if [[ "$4" == "--gen-test-data" ]]; then
     echo "Generating test data"
     cd $TEST_DIR
+    DATA_DIR="$(pwd)/data"
+    if [ ! -d "$DATA_DIR" ]; then
+    	echo "Creating data directory $DATA_DIR"
+    	mkdir -p "$DATA_DIR"
+    fi
     python3 generator.py --num-clients=$NUM_CLIENTS
     cd $ROOT_DIR
     echo "Generation complete"

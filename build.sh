@@ -3,6 +3,7 @@
 ROOT_DIR=$(pwd)
 BUILD_DIR=$ROOT_DIR/build
 BIN_DIR=$ROOT_DIR/bin
+export PATH="$ROOT_DIR/.local/bin:$PATH"
 
 # Check if the build and bin directory exists, if not create it
 if [ ! -d "$BUILD_DIR" ]; then
