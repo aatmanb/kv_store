@@ -3,8 +3,6 @@
 
 Dockerfile
 
-src/cmake
-
 .local
 src/build
 .vscode
@@ -12,3 +10,5 @@ src/build
 db/
 
 test/data
+build/
+bin/
