@@ -37,7 +37,7 @@ fi
 ROOT_DIR=$(pwd)
 SRC_DIR=$ROOT_DIR/src
 TEST_DIR=$ROOT_DIR/test
-BIN_DIR="$ROOT_DIR/build/src"
+BIN_DIR="$ROOT_DIR/bin"
 DB_DIR="$ROOT_DIR/db"
 
 NUM_CLIENTS=$1

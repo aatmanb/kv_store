@@ -14,8 +14,15 @@ set_target_properties(739kv PROPERTIES
 )
 
 
-include_directories("${CMAKE_SOURCE_DIR}/.local/include")
 include_directories("${CMAKE_SOURCE_DIR}/bin")
+
+target_link_libraries(739kv
+                        pthread 
+                        hw_grpc_proto 
+                        boost_thread
+                        absl::check absl::flags absl::flags_parse absl::log
+                        client
+                        ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF})
 
 ## Add subdirectories
 add_subdirectory(client)

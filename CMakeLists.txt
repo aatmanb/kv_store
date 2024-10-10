@@ -12,10 +12,13 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 set(CMAKE_CLIENT_DIR ${CMAKE_SOURCE_DIR}/src/client)
 set(CMAKE_SERVER_DIR ${CMAKE_SOURCE_DIR}/src/server)
 set(CMAKE_UTILS_DIR ${CMAKE_SOURCE_DIR}/src/utils)
+set(CMAKE_LIB_DIR ${CMAKE_SOURCE_DIR}/src)
 
 # Find absl package
 find_package(absl CONFIG REQUIRED)
 
+include_directories("${CMAKE_SOURCE_DIR}/.local/include")
+
 # Add subdirectories
 add_subdirectory(src)
-#add_subdirectory(test)
+add_subdirectory(test)
