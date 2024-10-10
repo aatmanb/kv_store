@@ -52,7 +52,9 @@ add_custom_command(
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 # Include tsl 
 include_directories("${PROJECT_SOURCE_DIR}/../external")
-message(STATUS "Project root directory: ${PROJECT_SOURCE_DIR}")
+include_directories("${PROJECT_SOURCE_DIR}/../extern/pybind11/include")
+include_directories("/usr/include/python3.10")
+# message(STATUS "Project root directory: ${PROJECT_SOURCE_DIR}")
 
 # hw_grpc_proto
 add_library(hw_grpc_proto
@@ -96,3 +98,17 @@ add_dependencies(739kv sqlite3)
 add_executable(test test.cc)
 target_link_libraries(test 739kv)
 add_dependencies(test 739kv)
+
+add_library(kv739_py SHARED wrapper.cpp)
+target_link_libraries(kv739_py PRIVATE 739kv)
+add_dependencies(kv739_py 739kv)
+# message(STATUS "${PROJECT_SOURCE_DIR}/../extern/pybind11/tools")
+# set(pybind11_DIR "${PROJECT_SOURCE_DIR}/../extern/pybind11/tools")
+# set(PYBIND11_FINDPYTHON ON)
+# # set(PYBIND11_TEST OFF)
+# find_package(pybind11 CONFIG REQUIRED)
+
+# pybind11_add_module(739kv_py wrapper.cpp)
+# target_link_libraries(739kv_py PRIVATE 739kv)
+# add_dependencies(739kv_py 739kv)
+# install(TARGETS 739kv_py DESTINATION .)
