@@ -33,6 +33,7 @@ public:
     Request(fwdGetReq _req): Request(_req.req().meta().addr(), request_t::GET, _req.req().key()) {}
     
     Request(putReq _req): Request(_req.meta().addr(), request_t::PUT, _req.key(), _req.value()) {}
+    Request(fwdPutReq _req): Request(_req.req().meta().addr(), request_t::PUT, _req.req().key(), _req.req().value()) {}
 
     std::string addr;
     request_t type;

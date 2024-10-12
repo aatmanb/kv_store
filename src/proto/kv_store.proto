@@ -26,6 +26,10 @@ message fwdGetReq {
     getReq req = 1;
 }
 
+message fwdPutReq {
+    putReq req = 1;
+}
+
 service kv_store {
 	// Client facing RPCs
     rpc get (getReq) returns (reqStatus) {};
@@ -34,6 +38,7 @@ service kv_store {
     
     // Used by the service internally
     rpc fwdGet (fwdGetReq) returns (empty) {};
+    rpc fwdPut (fwdPutReq) returns (empty) {};
     rpc ack (empty) returns (empty) {};
 }
 

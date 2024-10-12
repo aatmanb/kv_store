@@ -104,24 +104,31 @@ client::put(std::string key, std::string value, std::string &old_value) {
     ////std::string key_str = charArrayToString(key);
     ////std::string value_str = charArrayToString(value);
     //
-    ////std::cout << "[client " << id << "] " << "put" << "(" << key_str << ")" << ": " << value_str << std::endl;
+    std::cout << "[client " << id << "] " << "put" << "(" << key << ")" << ": " << value << std::endl;
     //
-    //putReq request;
-    //request.set_key(key);
-    //request.set_value(value);
-    //// request.set_id(id);
+    putReq request;
+    request.set_key(key);
+    request.set_value(value);
+    auto *_meta = request.mutable_meta();
+    _meta->set_addr("localhost:"+resp_server_addr);
 
-    //putResp response;
+    reqStatus response;
 
-    //ClientContext context;
-    //auto deadline = std::chrono::system_clock::now() + std::chrono::seconds(timeout);
-    //context.set_deadline(deadline);
+    ClientContext context;
+    auto deadline = std::chrono::system_clock::now() + std::chrono::seconds(timeout);
+    context.set_deadline(deadline);
 
-    //Status status = stub_->put(&context, request, &response);
-    //if (status.ok()) {
-    //    old_value = response.old_value();
-    //    return response.status();
-    //}
+    Status status = stub_->put(&context, request, &response);
+    if (status.ok()) {
+	std::cout << "waiting for server to respond: " << std::endl;
+	while (!(rcvd_resp)) {
+	     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+	}
+	rcvd_resp.store(false);
+	std::cout << "response server passed the value to client: " << this->value << std::endl;
+        old_value = this->value;
+        return this->status;
+    }
     //std::cerr << __FILE__ << "[" << __LINE__ << "]" << status.error_message() << std::endl;
     return -1;
 }
@@ -149,5 +156,11 @@ KVResponseService::sendGetResp(grpc::ServerContext* context, const getResp* get_
 grpc::Status
 KVResponseService::sendPutResp(grpc::ServerContext* context, const putResp* put_resp, respStatus* resp_status) {
     // TODO
+    std::cout << "received response for put" << std::endl;
+    *status = put_resp->status();
+    *value = put_resp->old_value();
+
+    resp_status->set_status(0);
+    *rcvd_resp = true;
     return Status::OK;
 }

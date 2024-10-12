@@ -473,8 +473,8 @@ int main(int argc, char** argv) {
     // bool crash_consistency_test = absl::GetFlag(FLAGS_crash_consistency_test);
     int32_t test_type = absl::GetFlag(FLAGS_test_type);
 
-    //runPutTest(target_str, id);
-    runGetTest(target_str, id); 
+    runPutTest(target_str, id);
+    //runGetTest(target_str, id); 
     
     //bool crash_consistency_test = (test_type == 2);
     //bool performance_test = (test_type == 3);
