@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package node;
+
+message getReq {
+	string key = 1;
+}
+
+message getResp {
+    int32 status = 1;
+    string value = 2;
+}
+
+message putReq {
+	string key = 1;
+	string value = 2;
+}
+
+message putResp {
+    int32 status = 1;
+    string old_value = 2;
+}
+
+message ackReq {
+    int32 status = 1;
+}
+
+message ackResp {
+    int32 status = 1;
+}
+
+service NodeService {
+	rpc get (getReq) returns (getResp) {};
+	rpc put (putReq) returns (putResp) {};
+    rpc ack (ackReq) returns (ackResp) {};
+}

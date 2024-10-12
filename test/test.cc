@@ -41,8 +41,8 @@ void runGetTest(std::string target_str, uint16_t name) {
     kv739_init(target_str); 
     for (int i=0; i<10; i++) { 
         status = kv739_get(test_key, test_value);
+        std::cout << "[client " << name << "] " << "status: " << status << " " << "get" << "(" << test_key << ")" << ": " << test_value << std::endl;
     }
-    std::cout << "[client " << name << "] " << "status: " << status << " " << "get" << "(" << test_key << ")" << ": " << test_value << std::endl;
     kv739_shutdown();
     printf("----------- [test] End GetTest ------------\n");
 }
@@ -473,22 +473,23 @@ int main(int argc, char** argv) {
     // bool crash_consistency_test = absl::GetFlag(FLAGS_crash_consistency_test);
     int32_t test_type = absl::GetFlag(FLAGS_test_type);
 
-    bool crash_consistency_test = (test_type == 2);
-    bool performance_test = (test_type == 3);
-    int populate_duration_1 = populateDB(target_str, real_fname, crash_consistency_test);
+    //runPutTest(target_str, id);
+    runGetTest(target_str, id); 
+    
+    //bool crash_consistency_test = (test_type == 2);
+    //bool performance_test = (test_type == 3);
+    //int populate_duration_1 = populateDB(target_str, real_fname, crash_consistency_test);
 
-    if (performance_test) {
-        std::cout << "Starting performance test......";
-        run_performance_test(target_str, 10);
-    } else {
-        std::cout << "crash_consistency_test: " << crash_consistency_test << std::endl;
-        int read_duration = runCorrectnessTest(target_str, real_fname, fake_fname, crash_consistency_test);
-        //runPutTest(target_str, name);
-        //runGetTest(target_str, name); 
+    //if (performance_test) {
+    //    std::cout << "Starting performance test......";
+    //    run_performance_test(target_str, 10);
+    //} else {
+    //    std::cout << "crash_consistency_test: " << crash_consistency_test << std::endl;
+    //    int read_duration = runCorrectnessTest(target_str, real_fname, fake_fname, crash_consistency_test);
 
-        std::cout << "populate_duration_1: " << populate_duration_1 << " us" << std::endl;
-        std::cout << "read_duration: " << read_duration << " us" << std::endl;
-    }
+    //    std::cout << "populate_duration_1: " << populate_duration_1 << " us" << std::endl;
+    //    std::cout << "read_duration: " << read_duration << " us" << std::endl;
+    //}
 
     return 0;
 }

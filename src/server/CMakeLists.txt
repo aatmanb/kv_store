@@ -13,7 +13,7 @@ target_include_directories(server PUBLIC "${CMAKE_SOURCE_DIR}/external")
 
 target_link_libraries(server 
                         pthread 
-                        hw_grpc_proto 
+                        kv_store_grpc_proto 
                         boost_thread
                         absl::check absl::flags absl::flags_parse absl::log
                         sqlite3

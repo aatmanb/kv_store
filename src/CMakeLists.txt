@@ -18,7 +18,7 @@ include_directories("${CMAKE_SOURCE_DIR}/bin")
 
 target_link_libraries(739kv
                         pthread 
-                        hw_grpc_proto 
+                        kv_store_grpc_proto 
                         boost_thread
                         absl::check absl::flags absl::flags_parse absl::log
                         client
@@ -69,10 +69,10 @@ add_subdirectory(proto)
 ## Generated sources
 #set(hw_proto_srcs "${CMAKE_CURRENT_BINARY_DIR}/kv_store.pb.cc")
 #set(hw_proto_hdrs "${CMAKE_CURRENT_BINARY_DIR}/kv_store.pb.h")
-#set(hw_grpc_srcs "${CMAKE_CURRENT_BINARY_DIR}/kv_store.grpc.pb.cc")
-#set(hw_grpc_hdrs "${CMAKE_CURRENT_BINARY_DIR}/kv_store.grpc.pb.h")
+#set(kv_store_grpc_srcs "${CMAKE_CURRENT_BINARY_DIR}/kv_store.grpc.pb.cc")
+#set(kv_store_grpc_hdrs "${CMAKE_CURRENT_BINARY_DIR}/kv_store.grpc.pb.h")
 #add_custom_command(
-#      OUTPUT "${hw_proto_srcs}" "${hw_proto_hdrs}" "${hw_grpc_srcs}" "${hw_grpc_hdrs}"
+#      OUTPUT "${hw_proto_srcs}" "${hw_proto_hdrs}" "${kv_store_grpc_srcs}" "${kv_store_grpc_hdrs}"
 #      COMMAND ${_PROTOBUF_PROTOC}
 #      ARGS --grpc_out "${CMAKE_CURRENT_BINARY_DIR}"
 #        --cpp_out "${CMAKE_CURRENT_BINARY_DIR}"
@@ -89,13 +89,13 @@ add_subdirectory(proto)
 #include_directories("/usr/include/python3.10")
 ## message(STATUS "Project root directory: ${PROJECT_SOURCE_DIR}")
 #
-## hw_grpc_proto
-#add_library(hw_grpc_proto
-#  ${hw_grpc_srcs}
-#  ${hw_grpc_hdrs}
+## kv_store_grpc_proto
+#add_library(kv_store_grpc_proto
+#  ${kv_store_grpc_srcs}
+#  ${kv_store_grpc_hdrs}
 #  ${hw_proto_srcs}
 #  ${hw_proto_hdrs})
-#target_link_libraries(hw_grpc_proto
+#target_link_libraries(kv_store_grpc_proto
 #  absl::check
 #  ${_REFLECTION}
 #  ${_GRPC_GRPCPP}
@@ -111,7 +111,7 @@ add_subdirectory(proto)
 #            739kv.h 739kv.cc
 #            utils.h utils.cc)
 #
-#target_link_libraries(739kv pthread hw_grpc_proto boost_thread
+#target_link_libraries(739kv pthread kv_store_grpc_proto boost_thread
 #                      absl::check absl::flags
 #                      absl::flags_parse absl::log sqlite3
 #                      ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF})
