@@ -69,7 +69,7 @@ namespace key_value_store {
         }
     }
 
-    grpc::Status kv_storeImpl::get(ServerContext* context, const getReq* request, getResp* response) {
+    grpc::Status kv_storeImpl::get(ServerContext* context, const getReq* request, reqStatus* response) {
         std::cout << "id: " << id <<  " GET CALLED!!" << std::endl;
         //// Sanity checks for get
         //if (request->key().length() > MAX_KEY_LEN) {
@@ -77,6 +77,8 @@ namespace key_value_store {
         //	response->set_status(KV_FAILURE);
         //	return Status::OK;
 	    //}
+
+        std::cout << "pear URL: " << context->peer() << std::endl;
         
         if (tail) {
 	        std::cout << "Processing client get() request" << std::endl;
@@ -89,7 +91,7 @@ namespace key_value_store {
             //} else {
             //    response->set_status(KV_GET_SUCCESS);
             //}
-            response->set_value("get call successful");
+            //response->set_value("get call successful");
             response->set_status(KV_GET_SUCCESS);
             return Status::OK;
         }
@@ -102,25 +104,25 @@ namespace key_value_store {
 
     }
 
-    grpc::Status kv_storeImpl::put(grpc::ServerContext* context, const putReq* request, putResp* response) {
-        // std::cout << "PUT CALLED!!\n";
-        // Sanity checks for key and value
-        if (request->key().length() > MAX_KEY_LEN || request->value().length() > MAX_VALUE_LEN) {
-        	response->set_old_value("");
-        	response->set_status(KV_FAILURE);
-        	return grpc::Status::OK;
-        }
-        
-        // std::cout << "Processing client put() request\n";
-        auto part_mgr = PartitionManager::get_instance();
-        auto partition = part_mgr->get_partition(request->key());
-        auto old_value = partition->put(request->key(), request->value());
-        response->set_old_value(old_value);
-        if (old_value == "") {
-            response->set_status(KV_PUT_SUCCESS);
-        } else {
-            response->set_status(KV_UPDATE_SUCCESS);
-        }
+    grpc::Status kv_storeImpl::put(grpc::ServerContext* context, const putReq* request, reqStatus* response) {
+        //// std::cout << "PUT CALLED!!\n";
+        //// Sanity checks for key and value
+        //if (request->key().length() > MAX_KEY_LEN || request->value().length() > MAX_VALUE_LEN) {
+        //	response->set_old_value("");
+        //	response->set_status(KV_FAILURE);
+        //	return grpc::Status::OK;
+        //}
+        //
+        //// std::cout << "Processing client put() request\n";
+        //auto part_mgr = PartitionManager::get_instance();
+        //auto partition = part_mgr->get_partition(request->key());
+        //auto old_value = partition->put(request->key(), request->value());
+        //response->set_old_value(old_value);
+        //if (old_value == "") {
+        //    response->set_status(KV_PUT_SUCCESS);
+        //} else {
+        //    response->set_status(KV_UPDATE_SUCCESS);
+        //}
         return grpc::Status::OK;
     }
 

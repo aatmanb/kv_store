@@ -7,16 +7,23 @@
 #include <cstring>
 #include <stdexcept>
 #include <cstdlib>
+#include <thread>
+#include <condition_variable>
+#include <atomic>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 
+#include <grpcpp/ext/proto_server_reflection_plugin.h>
 #include <grpcpp/grpcpp.h>
+#include <grpcpp/health_check_service_interface.h>
+
 #include "kv_store.grpc.pb.h"
 
 class client {
     public:
-        client(std::shared_ptr<grpc::Channel> channel, int timeout);
+        client(std::shared_ptr<grpc::Channel> channel, int timeout, std::string _resp_server_addr);
+        ~client();
 
         int get(std::string key, std::string &value);
         int put(std::string key, std::string value, std::string &old_value);
@@ -26,7 +33,28 @@ class client {
         int timeout;
 
     private:
+        std::string resp_server_addr;
         std::unique_ptr<kv_store::Stub> stub_;
+        std::atomic<bool> rcvd_resp = false; //notify the main thread that the response server received response
+        int status;
+        std::string value;
+
+        std::unique_ptr<grpc::Server> resp_server;
+        std::unique_ptr<grpc::Server> start_response_server(std::string resp_server_addr);
+};
+
+class KVResponseService final : public KVResponse::Service {
+    public:
+        KVResponseService(std::string _addr, std::atomic<bool> *_rcvd_resp, int *_status, std::string *_value);
+
+    private:
+        std::string addr;
+        std::atomic<bool> *rcvd_resp;
+        int *status;
+        std::string *value;
+
+        grpc::Status sendGetResp(grpc::ServerContext* context, const getResp* get_resp, respStatus* resp_status) override;
+        grpc::Status sendPutResp(grpc::ServerContext* context, const putResp* put_resp, respStatus* resp_status) override;
 };
 
 #endif  // client_h__

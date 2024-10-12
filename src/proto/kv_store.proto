@@ -1,12 +1,11 @@
 syntax = "proto3";
 
-message getReq {
-	string key = 1;
+message empty {
 }
 
-message getResp {
-    int32 status = 1;
-    string value = 2;
+
+message getReq {
+	string key = 1;
 }
 
 message putReq {
@@ -14,12 +13,33 @@ message putReq {
 	string value = 2;
 }
 
+message reqStatus {
+    int32 status = 1;
+}
+
+service kv_store {
+	rpc get (getReq) returns (reqStatus) {};
+	rpc put (putReq) returns (reqStatus) {};
+    rpc ack (empty) returns (empty) {};
+}
+
+
+
+message getResp {
+    int32 status = 1;
+    string value = 2;
+}
+
 message putResp {
     int32 status = 1;
     string old_value = 2;
 }
 
-service kv_store {
-	rpc get (getReq) returns (getResp) {}
-	rpc put (putReq) returns (putResp) {}
+message respStatus {
+    int32 status = 1;
+}
+
+service KVResponse {
+    rpc sendGetResp (getResp) returns (respStatus) {};
+    rpc sendPutResp (putResp) returns (respStatus) {};
 }

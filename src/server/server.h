@@ -14,6 +14,7 @@
 
 #include "kv_store.grpc.pb.h"
 #include "node.grpc.pb.h"
+#include "thread_safe_queue.h"
 
 // ABSL_FLAG(uint16_t, port, 50051, "Server port for the service");
 
@@ -42,10 +43,13 @@ namespace key_value_store {
         std::unique_ptr<kv_store::Stub> next_stub = nullptr;
         std::unique_ptr<kv_store::Stub> head_stub = nullptr;
         std::unique_ptr<kv_store::Stub> tail_stub = nullptr;
+       
         
-        grpc::Status get(grpc::ServerContext* context, const getReq* request, getResp* response) override;
-
-        grpc::Status put(grpc::ServerContext* context, const putReq* request, putResp* response) override;
+        ThreadSafeQueue<int> pending_q; 
+        
+ 
+        grpc::Status get(grpc::ServerContext* context, const getReq* request, reqStatus* response) override;
+        grpc::Status put(grpc::ServerContext* context, const putReq* request, reqStatus* response) override;
     };
 
     //class Node final: public NodeService::Service {

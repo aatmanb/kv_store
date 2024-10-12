@@ -5,6 +5,7 @@ add_executable(server
                 dbutils.h
                 singleton.h
                 partition_manager.h
+                thread_safe_queue.h
                 )
 
 # Include the directory for headers
