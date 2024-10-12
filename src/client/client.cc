@@ -86,9 +86,10 @@ client::get(std::string key, std::string &value) {
     Status status = stub_->get(&context, request, &response);
     if (status.ok()) {
         std::cout << "waiting for server to respond: " << std::endl;
-        while(!(rcvd_resp)) {
+        while(!(rcvd_resp.load())) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
+        rcvd_resp.store(false);
         std::cout << "response server passed the value to client: " << this->value << std::endl;
         value = this->value;
         return this->status;

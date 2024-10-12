@@ -39,7 +39,7 @@ void runGetTest(std::string target_str, uint16_t name) {
     std::string test_value;
     int status = -1; // Error by default
     kv739_init(target_str); 
-    for (int i=0; i<10; i++) { 
+    for (int i=0; i<1000; i++) { 
         status = kv739_get(test_key, test_value);
         std::cout << "[client " << name << "] " << "status: " << status << " " << "get" << "(" << test_key << ")" << ": " << test_value << std::endl;
     }

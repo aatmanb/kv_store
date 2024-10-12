@@ -55,6 +55,8 @@ namespace key_value_store {
         head_addr(_head_addr),
         tail_addr(_tail_addr)
     {
+        stop.store(false);
+
         if (!prev_addr.empty()) {
             prev_stub = kv_store::NewStub(grpc::CreateChannel(prev_addr, grpc::InsecureChannelCredentials()));
         }
@@ -66,6 +68,17 @@ namespace key_value_store {
         }
         if (!tail) {
             tail_stub = kv_store::NewStub(grpc::CreateChannel(tail_addr, grpc::InsecureChannelCredentials()));
+        }
+
+        if (tail) {
+            resp_thread = std::thread(&kv_storeImpl::serveRequest, this, std::ref(stop));
+        } 
+
+    }
+
+    kv_storeImpl::~kv_storeImpl() {
+        if (resp_thread.joinable()) {
+            resp_thread.join();
         }
     }
 
@@ -79,11 +92,27 @@ namespace key_value_store {
 	    //}
 
         std::cout << "pear URL: " << context->peer() << std::endl;
-        
+        Request req = Request(*request);
+        //get_process(req);
+        try {
+            if (get_thread.joinable()) {
+                get_thread.join();
+            }
+            get_thread = std::thread(&kv_storeImpl::get_process, this, req);
+            response->set_status(KV_GET_SUCCESS);
+        } catch (const std::exception& e) {
+            std::cerr << "Error in get_process: " << e.what() << std::endl;
+            return grpc::Status(grpc::StatusCode::INTERNAL, "Internal error");
+        }
+        return Status::OK;
+    }
+
+    void kv_storeImpl::get_process(Request req) {
         if (tail) {
             // TODO: push the request to pending queue
-            // pushToPendingQ();
-	        std::cout << "Processing client get() request" << std::endl;
+            std::cout << "pushing to pending Q" << std::endl;
+            pending_q.enqueue(req); 
+	        //std::cout << "Processing client get() request" << std::endl;
             //auto part_mgr = PartitionManager::get_instance();
             //auto partition = part_mgr->get_partition(request->key());
             //auto value = partition->get(request->key());
@@ -94,23 +123,21 @@ namespace key_value_store {
             //    response->set_status(KV_GET_SUCCESS);
             //}
             //response->set_value("get call successful");
-            response->set_status(KV_GET_SUCCESS);
-            return Status::OK;
+            //response->set_status(KV_GET_SUCCESS);
+            //return Status::OK;
         }
         else {
 	        std::cout << "forwarding to tail" << std::endl;
             ClientContext _context;
-            _context.set_deadline(context->deadline());
             fwdGetReq _req;
             auto *original_req = _req.mutable_req();
             auto *meta = original_req->mutable_meta();
-            original_req->set_key(request->key());
-            meta->set_addr(request->meta().addr());
+            original_req->set_key(req.key);
+            meta->set_addr(req.addr);
             empty _resp;
             //TODO: response->set_status(KV_FWD_GET);
-            return tail_stub->fwdGet(&_context, _req, &_resp);
+            Status status = tail_stub->fwdGet(&_context, _req, &_resp);
         }
-
     }
 
     grpc::Status kv_storeImpl::put(grpc::ServerContext* context, const putReq* request, reqStatus* response) {
@@ -138,8 +165,8 @@ namespace key_value_store {
     grpc::Status kv_storeImpl::fwdGet(ServerContext* context, const fwdGetReq* request, empty* response) {
         std::cout << "id: " << id <<  " received fwdGetReq" << std::endl;
         assert(tail); // Only tail shoudl receive forwarded getReq
-        //TODO:
-        //pushToPendingQ();
+        std::cout << "pushing to pending Q" << std::endl;
+        pending_q.enqueue(Request(*request));
         //// Sanity checks for get
         //if (request->key().length() > MAX_KEY_LEN) {
         //	response->set_value ("");
@@ -147,17 +174,6 @@ namespace key_value_store {
         //	return Status::OK;
 	    //}
 
-	    std::cout << "Processing client get() request" << std::endl;
-        std::string client_addr = request->req().meta().addr();
-        std::cout << "client_addr: " << client_addr << std::endl;
-        client_stub = KVResponse::NewStub(grpc::CreateChannel(client_addr, grpc::InsecureChannelCredentials()));
-        ClientContext _context;
-        getResp _req;
-        _req.set_value("Get call successful");
-        _req.set_status(KV_GET_SUCCESS);
-        respStatus _resp; 
-        client_stub->sendGetResp(&_context, _req, &_resp);
-        std::cout << "Sent get response to client" << std::endl;
         //auto part_mgr = PartitionManager::get_instance();
         //auto partition = part_mgr->get_partition(request->key());
         //auto value = partition->get(request->key());
@@ -172,6 +188,38 @@ namespace key_value_store {
 
     }
 
+
+    void kv_storeImpl::serveRequest(std::atomic<bool> &stop) {
+        Request req;
+        while (!stop.load()) {
+            std::cout << "waiting for pending_q" << std::endl;
+            req = pending_q.dequeue();
+            std::cout << "popped request from pending_q" << std::endl;
+            if (req.type == request_t::GET) {
+	            std::cout << "Processing client get() request" << std::endl;
+                std::string client_addr = req.addr;
+                std::cout << "client_addr: " << client_addr << std::endl;
+                client_stub = KVResponse::NewStub(grpc::CreateChannel(client_addr, grpc::InsecureChannelCredentials()));
+                ClientContext _context;
+                getResp _req;
+                _req.set_value("Get call successful");
+                _req.set_status(KV_GET_SUCCESS);
+                respStatus _resp; 
+                client_stub->sendGetResp(&_context, _req, &_resp);
+                std::cout << "Sent get response to client" << std::endl;
+            }
+            else if (req.type == request_t::PUT) {
+                // TODO
+                std::cerr << "Put not supported" << std::endl;
+                std::exit(1);
+            }
+            else {
+                std::cerr << "Invalid request type" << std::endl;
+                std::exit(1);
+            }
+        }
+        std::cout << "Finished work assigned to resp_thread" << std::endl;
+    }
 
     //Node::Node(const std::string _addr, const std::string _prev_addr, const std::string _next_addr) : 
     //    addr(_addr),

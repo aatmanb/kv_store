@@ -6,6 +6,7 @@ add_executable(server
                 singleton.h
                 partition_manager.h
                 thread_safe_queue.h
+                request.h
                 )
 
 # Include the directory for headers

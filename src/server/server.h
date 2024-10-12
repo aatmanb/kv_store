@@ -15,18 +15,22 @@
 #include "kv_store.grpc.pb.h"
 #include "node.grpc.pb.h"
 #include "thread_safe_queue.h"
+#include "request.h"
 
 // ABSL_FLAG(uint16_t, port, 50051, "Server port for the service");
 
 namespace key_value_store {
+
     void runServer(uint32_t id, const char *db_fname, bool head, bool tail, std::string addr, std::string prev_addr, std::string next_addr, std::string head_addr, std::string tail_addr);
     
     class kv_storeImpl final : public kv_store::Service {
     public:
         kv_storeImpl(uint32_t _id, const char *db_name, bool _head, bool _tail, std::string _addr, std::string _prev_addr, std::string _next_addr, std::string _head_addr, std::string _tail_addr); 
-    
+        ~kv_storeImpl();
+ 
     private: 
         uint32_t id;
+        std::atomic<bool> stop;
     
 	    const char *db_name;
 
@@ -44,8 +48,7 @@ namespace key_value_store {
         std::unique_ptr<kv_store::Stub> head_stub = nullptr;
         std::unique_ptr<kv_store::Stub> tail_stub = nullptr;
        
-        
-        ThreadSafeQueue<int> pending_q; 
+        ThreadSafeQueue<Request> pending_q; 
         
         std::string client_addr; // The client which send the request 
  
@@ -58,8 +61,20 @@ namespace key_value_store {
         grpc::Status fwdGet(grpc::ServerContext* context, const fwdGetReq* request, empty* response) override;
         
 
-        // TODO:
-        //void pushToPendingQ();
+        std::thread resp_thread; // This threads pops request from pending_q and sends response to the client. This is used by tail node only.
+        void serveRequest(std::atomic<bool>& stop);
+
+        std::thread get_thread;
+        void get_process(Request req);
+
+        //std::thread put_thread;
+        //void put_process(Request req);
+
+        //std::thread commit_thread;
+        //void commit_process();
+
+        //std::thread ack_thread;
+        //void ack_process(); 
     };
 
     //class Node final: public NodeService::Service {
