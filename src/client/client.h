@@ -39,8 +39,13 @@ class client {
         int status;
         std::string value;
 
-        std::unique_ptr<grpc::Server> resp_server;
-        std::unique_ptr<grpc::Server> start_response_server(std::string resp_server_addr);
+        std::unique_ptr<grpc::Server> resp_server = nullptr;
+        //std::unique_ptr<grpc::Server> start_response_server(std::string resp_server_addr);
+        //void start_response_server(std::string resp_server_addr, std::atomic<bool>& stop);
+        void start_response_server(std::string addr, std::unique_ptr<grpc::Server>& server);
+
+        std::thread server_thread;
+        std::atomic<bool> stop = true; // notify the sever to stop
 };
 
 class KVResponseService final : public KVResponse::Service {

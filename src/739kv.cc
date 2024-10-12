@@ -57,7 +57,7 @@ int kv739_init(const std::string server_name) {
 
     try {
 	    std::cout << "Server name: " << server_name << "\n";
-        client_instance = new client(grpc::CreateChannel(server_name, grpc::InsecureChannelCredentials()), timeout, "localhost::6440");
+        client_instance = new client(grpc::CreateChannel(server_name, grpc::InsecureChannelCredentials()), timeout, "6440");
         return 0;
     }
     catch (const std::exception &e) {

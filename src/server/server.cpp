@@ -81,6 +81,8 @@ namespace key_value_store {
         std::cout << "pear URL: " << context->peer() << std::endl;
         
         if (tail) {
+            // TODO: push the request to pending queue
+            // pushToPendingQ();
 	        std::cout << "Processing client get() request" << std::endl;
             //auto part_mgr = PartitionManager::get_instance();
             //auto partition = part_mgr->get_partition(request->key());
@@ -97,9 +99,16 @@ namespace key_value_store {
         }
         else {
 	        std::cout << "forwarding to tail" << std::endl;
-            ClientContext c_context;
-            c_context.set_deadline(context->deadline());
-            return tail_stub->get(&c_context, *request, response);
+            ClientContext _context;
+            _context.set_deadline(context->deadline());
+            fwdGetReq _req;
+            auto *original_req = _req.mutable_req();
+            auto *meta = original_req->mutable_meta();
+            original_req->set_key(request->key());
+            meta->set_addr(request->meta().addr());
+            empty _resp;
+            //TODO: response->set_status(KV_FWD_GET);
+            return tail_stub->fwdGet(&_context, _req, &_resp);
         }
 
     }
@@ -124,6 +133,43 @@ namespace key_value_store {
         //    response->set_status(KV_UPDATE_SUCCESS);
         //}
         return grpc::Status::OK;
+    }
+    
+    grpc::Status kv_storeImpl::fwdGet(ServerContext* context, const fwdGetReq* request, empty* response) {
+        std::cout << "id: " << id <<  " received fwdGetReq" << std::endl;
+        assert(tail); // Only tail shoudl receive forwarded getReq
+        //TODO:
+        //pushToPendingQ();
+        //// Sanity checks for get
+        //if (request->key().length() > MAX_KEY_LEN) {
+        //	response->set_value ("");
+        //	response->set_status(KV_FAILURE);
+        //	return Status::OK;
+	    //}
+
+	    std::cout << "Processing client get() request" << std::endl;
+        std::string client_addr = request->req().meta().addr();
+        std::cout << "client_addr: " << client_addr << std::endl;
+        client_stub = KVResponse::NewStub(grpc::CreateChannel(client_addr, grpc::InsecureChannelCredentials()));
+        ClientContext _context;
+        getResp _req;
+        _req.set_value("Get call successful");
+        _req.set_status(KV_GET_SUCCESS);
+        respStatus _resp; 
+        client_stub->sendGetResp(&_context, _req, &_resp);
+        std::cout << "Sent get response to client" << std::endl;
+        //auto part_mgr = PartitionManager::get_instance();
+        //auto partition = part_mgr->get_partition(request->key());
+        //auto value = partition->get(request->key());
+        //response->set_value(value);
+        //if (value == "") {
+        //    response->set_status(KV_GET_FAILED);
+        //} else {
+        //    response->set_status(KV_GET_SUCCESS);
+        //}
+        //response->set_value("get call successful");
+        return Status::OK;
+
     }
 
 

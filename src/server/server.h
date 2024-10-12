@@ -47,9 +47,19 @@ namespace key_value_store {
         
         ThreadSafeQueue<int> pending_q; 
         
+        std::string client_addr; // The client which send the request 
  
         grpc::Status get(grpc::ServerContext* context, const getReq* request, reqStatus* response) override;
         grpc::Status put(grpc::ServerContext* context, const putReq* request, reqStatus* response) override;
+        
+        
+        std::unique_ptr<KVResponse::Stub> client_stub = nullptr;
+        // Internal RPCs
+        grpc::Status fwdGet(grpc::ServerContext* context, const fwdGetReq* request, empty* response) override;
+        
+
+        // TODO:
+        //void pushToPendingQ();
     };
 
     //class Node final: public NodeService::Service {

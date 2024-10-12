@@ -26,22 +26,28 @@ client::client(std::shared_ptr<Channel> channel, int timeout, std::string _resp_
     // Spawn two threads
     // thread 0: run the server
     // thread 1: continue with client construction
-    //std::thread server_thread(start_response_server, resp_server_addr);
-    resp_server = start_response_server(resp_server_addr);
+    server_thread = std::thread(&client::start_response_server, this, "0.0.0.0:"+resp_server_addr, std::ref(resp_server));
+    //resp_server = start_response_server("0.0.0.0:"+resp_server_addr);
     std::cout << "client " << id << " started response server" << std::endl;
-    
 }
 
 client::~client() {
+    std::cout << "killing server" << std::endl;
+    stop.store(true);
     resp_server->Shutdown();
+    if (server_thread.joinable()) {
+        server_thread.join();
+    }
+    //resp_server->Shutdown();
     // TODO: 
     // 1. close the response server to tail connection
     // 2. kill the response server
     // 3. close the client to CR server conection
 }
 
-std::unique_ptr<grpc::Server>
-client::start_response_server(std::string addr) {
+//std::unique_ptr<grpc::Server>
+void
+client::start_response_server(std::string addr, std::unique_ptr<grpc::Server>& server) {
     KVResponseService service(addr, &rcvd_resp, &status, &value);
     
     grpc::EnableDefaultHealthCheckService(true);
@@ -52,20 +58,13 @@ client::start_response_server(std::string addr) {
     // Register "service" as the instance through which we'll communicate with
     // clients. In this case it corresponds to an *synchronous* service.
     builder.RegisterService(&service);
-    // Finally assemble the server.
-    std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
-    std::cout << "Server listening on " << addr << std::endl;
     
-    return server;
-   
-    //while(!stop) {
-    //    std::this_thread::sleep_for(std::chrono::seconds(1));
-    //}
-
- 
-    //// Wait for the server to shutdown. Note that some other thread must be
-    //// responsible for shutting down the server for this call to ever return.
-    //server->Wait();
+    // Finally assemble the server.
+    server = std::move(builder.BuildAndStart());
+    std::cout << "response server listening on " << addr << std::endl;
+    // Wait for the server to shutdown. Note that some other thread must be
+    // responsible for shutting down the server for this call to ever return.
+    server->Wait();
 }
 
 int
@@ -74,6 +73,8 @@ client::get(std::string key, std::string &value) {
     std::cout << "[client " << id << "] " << "get() called with key: " << key << std::endl;
     getReq request;
     request.set_key(key);
+    auto *_meta = request.mutable_meta();
+    _meta->set_addr("localhost:"+resp_server_addr);
     // request.set_id(id);
 
     reqStatus response;
@@ -84,6 +85,7 @@ client::get(std::string key, std::string &value) {
     
     Status status = stub_->get(&context, request, &response);
     if (status.ok()) {
+        std::cout << "waiting for server to respond: " << std::endl;
         while(!(rcvd_resp)) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
