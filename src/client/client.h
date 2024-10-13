@@ -34,22 +34,21 @@ class client {
 
     private:
         std::string resp_server_addr;
+        std::atomic<bool> resp_server_started;
         std::unique_ptr<kv_store::Stub> stub_;
         std::atomic<bool> rcvd_resp = false; //notify the main thread that the response server received response
         int status;
         std::string value;
 
         std::unique_ptr<grpc::Server> resp_server = nullptr;
-        void start_response_server(std::unique_ptr<grpc::Server>& server, std::string& port);
-        void runRespServer(std::unique_ptr<grpc::Server>& server);
+        void start_response_server(std::unique_ptr<grpc::Server>& server, std::string& port, std::atomic<bool>& started);
 
         std::thread server_thread;
-        std::atomic<bool> stop = true; // notify the sever to stop
 };
 
 class KVResponseService final : public KVResponse::Service {
     public:
-        KVResponseService(std::string _addr, std::atomic<bool> *_rcvd_resp, int *_status, std::string *_value);
+        KVResponseService(std::atomic<bool> *_rcvd_resp, int *_status, std::string *_value);
 
     private:
         std::string addr;

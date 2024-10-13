@@ -26,28 +26,28 @@ client::client(std::shared_ptr<Channel> channel, int timeout) :
     // Spawn two threads
     // thread 0: run the server
     // thread 1: continue with client construction
-    start_response_server(resp_server, resp_server_addr);
-    server_thread = std::thread(&client::runRespServer, this, std::ref(resp_server));
+    resp_server_started.store(false);
+    server_thread = std::thread(&client::start_response_server, this, std::ref(resp_server), std::ref(resp_server_addr), std::ref(resp_server_started));
+    while (!resp_server_started.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
     std::cout << "client " << id << " started response server" << std::endl;
 }
 
 client::~client() {
-    std::cout << "killing server" << std::endl;
-    stop.store(true);
-    resp_server->Shutdown();
-    if (server_thread.joinable()) {
-        server_thread.join();
-    }
-    //resp_server->Shutdown();
     // TODO: 
     // 1. close the response server to tail connection
     // 2. kill the response server
     // 3. close the client to CR server conection
+    std::cout << "killing server" << std::endl;
+    resp_server->Shutdown();
+    if (server_thread.joinable()) {
+        server_thread.join();
+    }
 }
 
-//std::unique_ptr<grpc::Server>
 void
-client::start_response_server(std::unique_ptr<grpc::Server>& server, std::string& port) {
+client::start_response_server(std::unique_ptr<grpc::Server>& server, std::string& port, std::atomic<bool>& started) {
     std::string addr = "0.0.0.0:0";
     
     grpc::EnableDefaultHealthCheckService(true);
@@ -56,27 +56,21 @@ client::start_response_server(std::unique_ptr<grpc::Server>& server, std::string
     int selected_port;
     // Listen on the given address without any authentication mechanism.
     builder.AddListeningPort(addr, grpc::InsecureServerCredentials(), &selected_port);
-    //port = std::to_string(selected_port);
+    KVResponseService service(&rcvd_resp, &status, &value);
+    // Register "service" as the instance through which we'll communicate with
+    // clients. In this case it corresponds to an *synchronous* service.
+    builder.RegisterService(&service);
     
     // Finally assemble the server.
     server = std::move(builder.BuildAndStart());
    
     port = std::to_string(selected_port); 
     std::string selected_addr = "0.0.0.0:" + std::to_string(selected_port);
-    KVResponseService service(selected_addr, &rcvd_resp, &status, &value);
-    // Register "service" as the instance through which we'll communicate with
-    // clients. In this case it corresponds to an *synchronous* service.
-    builder.RegisterService(&service);
     
     std::cout << "response server listening on selected_port " << selected_port << std::endl;
     std::cout << "response server listening on port " << port << std::endl;
     std::cout << "response server listening on addr " << selected_addr << std::endl;
-}
-
-void
-client::runRespServer(std::unique_ptr<grpc::Server>& server) {
-    // Wait for the server to shutdown. Note that some other thread must be
-    // responsible for shutting down the server for this call to ever return.
+    started.store(true);
     server->Wait();
 }
 
@@ -149,8 +143,7 @@ client::put(std::string key, std::string value, std::string &old_value) {
 }
 
 
-KVResponseService::KVResponseService(std::string _addr, std::atomic<bool> *_rcvd_resp, int *_status, std::string *_value):
-    addr(_addr),
+KVResponseService::KVResponseService(std::atomic<bool> *_rcvd_resp, int *_status, std::string *_value):
     rcvd_resp(_rcvd_resp),
     status(_status),
     value(_value)

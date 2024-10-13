@@ -39,7 +39,7 @@ void runGetTest(std::string target_str, uint16_t name) {
     std::string test_value;
     int status = -1; // Error by default
     kv739_init(target_str); 
-    for (int i=0; i<1000; i++) { 
+    for (int i=0; i<1; i++) { 
         status = kv739_get(test_key, test_value);
         std::cout << "[client " << name << "] " << "status: " << status << " " << "get" << "(" << test_key << ")" << ": " << test_value << std::endl;
     }
@@ -474,7 +474,7 @@ int main(int argc, char** argv) {
     int32_t test_type = absl::GetFlag(FLAGS_test_type);
 
     runPutTest(target_str, id);
-    //runGetTest(target_str, id); 
+    runGetTest(target_str, id); 
     
     //bool crash_consistency_test = (test_type == 2);
     //bool performance_test = (test_type == 3);
