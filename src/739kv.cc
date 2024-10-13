@@ -71,7 +71,7 @@ int kv739_shutdown() {
         std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Client not initialized" << std::endl;
         return -1;
     }
-    std::cout << "Shutdown called!\n";
+//    std::cout << "Shutdown called!\n";
     delete client_instance;
     client_instance = nullptr;
     return 0;
@@ -160,9 +160,9 @@ int kv739_put(const std::string key, const std::string value, std::string &old_v
         return status;
     }
 
-    std::cout << __FILE__ << "[" << __LINE__ << "]" << "calling put()" << std::endl;
-    std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
-    std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
+    //std::cout << __FILE__ << "[" << __LINE__ << "]" << "calling put()" << std::endl;
+    //std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
+    //std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
 
     try {
         status = client_instance->put(key, value, old_value);

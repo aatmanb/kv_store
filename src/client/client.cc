@@ -26,6 +26,7 @@ client::client(std::shared_ptr<Channel> channel, int timeout) :
     // Spawn two threads
     // thread 0: run the server
     // thread 1: continue with client construction
+    rcvd_resp.store(false);
     resp_server_started.store(false);
     server_thread = std::thread(&client::start_response_server, this, std::ref(resp_server), std::ref(resp_server_addr), std::ref(resp_server_started));
     while (!resp_server_started.load()) {
@@ -128,6 +129,8 @@ client::put(std::string key, std::string value, std::string &old_value) {
     context.set_deadline(deadline);
 
     Status status = stub_->put(&context, request, &response);
+//    std::cout << "Put called to server" << std::endl;
+//    std::cout << "Status Code: " << status.error_code() << std::endl; std::cout << "Error Message: " << status.error_message() << std::endl;
     if (status.ok()) {
         std::cout << "waiting for server to respond: " << std::endl;
         while (!rcvd_resp.load()) {

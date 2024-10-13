@@ -15,6 +15,7 @@
 #include "kv_store.grpc.pb.h"
 // #include "node.grpc.pb.h"
 #include "thread_safe_queue.h"
+#include "thread_safe_hashmap.h"
 #include "request.h"
 
 // ABSL_FLAG(uint16_t, port, 50051, "Server port for the service");
@@ -50,6 +51,7 @@ namespace key_value_store {
        
         ThreadSafeQueue<Request> pending_q; 
         ThreadSafeQueue<Request> sent_q;
+        ThreadSafeHashMap<std::string, std::string> local_map;
         
         std::string client_addr; // The client which send the request 
  
