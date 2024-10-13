@@ -32,7 +32,7 @@ namespace key_value_store {
         uint32_t id;
         std::atomic<bool> stop;
     
-	    const char *db_name;
+        const char *db_name;
 
         bool tail;
         bool head;
@@ -49,6 +49,7 @@ namespace key_value_store {
         std::unique_ptr<kv_store::Stub> tail_stub = nullptr;
        
         ThreadSafeQueue<Request> pending_q; 
+        ThreadSafeQueue<Request> sent_q;
         
         std::string client_addr; // The client which send the request 
  
@@ -58,14 +59,14 @@ namespace key_value_store {
         
         std::unique_ptr<KVResponse::Stub> client_stub = nullptr;
         
-	    // Internal RPCs
+        // Internal RPCs
         grpc::Status fwdGet(grpc::ServerContext* context, const fwdGetReq* request, empty* response) override;
         grpc::Status fwdPut(grpc::ServerContext *context, const fwdPutReq* request, empty *response) override;
         grpc::Status commit(grpc::ServerContext *context, const fwdPutReq* request, empty *response) override;
-        grpc::Status ack(grpc::ServerContext *context, const empty* request, empty *response) override;
+        grpc::Status ack(grpc::ServerContext *context, const putAck* request, empty *response) override;
 
         void spawnCommit(Request req);
-        void spawnAck();
+        void spawnAck(Request req);
 
         std::thread resp_thread; // This threads pops request from pending_q and sends response to the client. This is used by tail node only.
         void serveRequest(std::atomic<bool>& stop);
@@ -80,13 +81,7 @@ namespace key_value_store {
         void commit_process(Request req);
 
         std::thread ack_thread;
-        void ack_process();
-
-	// TODO:
-        //void pushToPendingQ();
-	//putReq popFromPendingQ();
-	//void pushToSentQ();
-	//putReq popFromSentQ();
+        void ack_process(Request req);
     };
 
     //class Node final: public NodeService::Service {

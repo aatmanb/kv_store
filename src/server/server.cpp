@@ -189,7 +189,7 @@ namespace key_value_store {
             put_thread = std::thread(&kv_storeImpl::put_process, this, req);
             response->set_status(KV_PUT_RECEIVED);
         } catch (const std::exception& e) {
-            std::cerr << "Error in get_process: " << e.what() << std::endl;
+            std::cerr << "Error in put_process: " << e.what() << std::endl;
             return grpc::Status(grpc::StatusCode::INTERNAL, "Internal error");
         }
         return Status::OK;
@@ -215,7 +215,7 @@ namespace key_value_store {
 	        //original_req->set_value (req.value);
 	        //meta->set_addr(req.addr);
 	        empty _resp;
-	        Status status = next_stub->fwdPut(&_context, _req, &_resp);
+	        Status status = head_stub->fwdPut(&_context, _req, &_resp);
         }
     }
     
@@ -243,10 +243,11 @@ namespace key_value_store {
         return Status::OK;
     }
     
-    grpc::Status kv_storeImpl::ack(ServerContext* context, const empty* request, empty* response) {
+    grpc::Status kv_storeImpl::ack(ServerContext* context, const putAck* request, empty* response) {
 	    std::cout << "id: " << id << " received ack\n";
         assert(!tail);
-        spawnAck();
+        Request req = Request(*request);
+        spawnAck(req);
         return Status::OK;
     }
 
@@ -261,12 +262,12 @@ namespace key_value_store {
         }
     }
 
-    void kv_storeImpl::spawnAck() {
+    void kv_storeImpl::spawnAck(Request req) {
         try {
             if (ack_thread.joinable()) {
                 ack_thread.join();
             }
-            ack_thread = std::thread(&kv_storeImpl::ack_process, this);
+            ack_thread = std::thread(&kv_storeImpl::ack_process, this, req);
         } catch (const std::exception& e) {
             std::cerr << "Error in spawnAck: " << e.what() << std::endl;
         }
@@ -275,7 +276,7 @@ namespace key_value_store {
     void kv_storeImpl::commit_process(Request req) {
         // TODO:
         // 1. Commit to own database
-        // 2. append to sent_q
+        sent_q.enqueue(req);
         if (!tail) {
 	        ClientContext _context;
             fwdPutReq _req = req.rpc_fwdPutReq();
@@ -288,12 +289,20 @@ namespace key_value_store {
         }
     }
 
-    void kv_storeImpl::ack_process() {
-        // TODO:
-        // 1. delete entry to sent_q
+    void kv_storeImpl::ack_process(Request req) {
+        // Delete entry to sent_q
+        Request curr_req = sent_q.dequeue();
+
+        // Check if the request contains the same information as the ack. (Should never reach this code)
+        if (!req.identicalRequests(curr_req)) {
+            req.dumpRequestInfo();
+            curr_req.dumpRequestInfo();
+            assert(false);
+        }
+
         if (!head) {
 	        ClientContext _context;
-            empty _req;
+            putAck _req = curr_req.rpc_putAck();
             empty _resp;
             prev_stub->ack(&_context, _req, &_resp); 
         }
@@ -326,6 +335,8 @@ namespace key_value_store {
 	            std::cout << "Processing client put() request" << std::endl;
 	            std::string client_addr = req.addr;
 	            std::cout << "client_addr: " << client_addr << std::endl;
+                std::cout << "key: " << req.key << std::endl;
+                std::cout << "value: " << req.value << std::endl;
 	            client_stub = KVResponse::NewStub(grpc::CreateChannel(client_addr, grpc::InsecureChannelCredentials()));
 	            ClientContext _context;
 	            putResp _req;
@@ -333,7 +344,7 @@ namespace key_value_store {
 	            _req.set_status(KV_GET_SUCCESS);
 	            respStatus _resp; 
 	            Status status = client_stub->sendPutResp(&_context, _req, &_resp);
-                spawnAck();
+                spawnAck(req);
 	            std::cout << "Sent put response to client" << std::endl;
             }
             else {

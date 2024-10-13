@@ -7,6 +7,12 @@ message clientMetaData {
     string addr = 1;
 }
 
+message putAck {
+    string key = 1;
+    string value = 2;
+    clientMetaData meta = 3;
+}
+
 message getReq {
 	string key = 1;
     clientMetaData meta = 2;
@@ -40,7 +46,7 @@ service kv_store {
     rpc fwdGet (fwdGetReq) returns (empty) {};
     rpc fwdPut (fwdPutReq) returns (empty) {};
     rpc commit (fwdPutReq) returns (empty) {};
-    rpc ack (empty) returns (empty) {};
+    rpc ack (putAck) returns (empty) {};
 }
 
 
