@@ -58,9 +58,14 @@ namespace key_value_store {
         
         std::unique_ptr<KVResponse::Stub> client_stub = nullptr;
         
-	// Internal RPCs
+	    // Internal RPCs
         grpc::Status fwdGet(grpc::ServerContext* context, const fwdGetReq* request, empty* response) override;
         grpc::Status fwdPut(grpc::ServerContext *context, const fwdPutReq* request, empty *response) override;
+        grpc::Status commit(grpc::ServerContext *context, const fwdPutReq* request, empty *response) override;
+        grpc::Status ack(grpc::ServerContext *context, const empty* request, empty *response) override;
+
+        void spawnCommit(Request req);
+        void spawnAck();
 
         std::thread resp_thread; // This threads pops request from pending_q and sends response to the client. This is used by tail node only.
         void serveRequest(std::atomic<bool>& stop);
@@ -71,11 +76,11 @@ namespace key_value_store {
         std::thread put_thread;
         void put_process(Request req);
 
-        //std::thread commit_thread;
-        //void commit_process();
+        std::thread commit_thread;
+        void commit_process(Request req);
 
-        //std::thread ack_thread;
-        //void ack_process();
+        std::thread ack_thread;
+        void ack_process();
 
 	// TODO:
         //void pushToPendingQ();

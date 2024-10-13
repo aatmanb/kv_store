@@ -30,10 +30,50 @@ public:
     {}
 
     Request(getReq _req): Request(_req.meta().addr(), request_t::GET, _req.key()) {}
-    Request(fwdGetReq _req): Request(_req.req().meta().addr(), request_t::GET, _req.req().key()) {}
+    Request(fwdGetReq _req): Request(_req.req()) {}
     
     Request(putReq _req): Request(_req.meta().addr(), request_t::PUT, _req.key(), _req.value()) {}
-    Request(fwdPutReq _req): Request(_req.req().meta().addr(), request_t::PUT, _req.req().key(), _req.req().value()) {}
+    Request(fwdPutReq _req): Request(_req.req()) {}
+
+    getReq rpc_getReq() {
+        assert(type == request_t::GET);
+        getReq req;
+        req.set_key(key);
+        auto *meta = req.mutable_meta();
+        meta->set_addr(addr);
+        return req;
+    }
+
+    fwdGetReq rpc_fwdGetReq() {
+        assert(type == request_t::GET);
+        fwdGetReq req;
+        auto *original_req = req.mutable_req();
+        auto *meta = original_req->mutable_meta();
+        original_req->set_key(key);
+        meta->set_addr(addr);
+        return req;
+    }
+
+    putReq rpc_putReq() {
+        assert(type == request_t::PUT);
+        putReq req;
+        req.set_key(key);
+        req.set_value(value);
+        auto *meta = req.mutable_meta();
+        meta->set_addr(addr);
+        return req;
+    }
+
+    fwdPutReq rpc_fwdPutReq() {
+        assert(type == request_t::PUT);
+        fwdPutReq req;
+        auto *original_req = req.mutable_req();
+        auto *meta = original_req->mutable_meta();
+        original_req->set_key(key);
+        original_req->set_value(value);
+        meta->set_addr(addr);
+        return req;
+    }
 
     std::string addr;
     request_t type;

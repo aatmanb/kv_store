@@ -3,14 +3,12 @@
 #include "partition_manager.h"
 
 #define KV_FAILURE -1
-
 #define KV_GET_SUCCESS 0
-#define KV_GET_FAILED 1
-
-#define KV_UPDATE_SUCCESS 0
-#define KV_PUT_SUCCESS 1
-#define KV_PUT_RECEIVED 2
-#define KV_PUT_REDIRECT 3
+#define KV_GET_FAILED  1
+#define KV_UPDATE_SUCCESS 2
+#define KV_PUT_SUCCESS 3
+#define KV_PUT_RECEIVED 4
+#define KV_PUT_REDIRECT 5
 
 #define MAX_KEY_LEN 128
 #define MAX_VALUE_LEN 2048
@@ -83,13 +81,22 @@ namespace key_value_store {
             resp_thread.join();
         }
 
-	if (get_thread.joinable()) {
+        if (get_thread.joinable()) {
             get_thread.join();
-	}
-
-	if (put_thread.joinable()) {
-	    put_thread.join();
-	}
+        }
+        
+        if (put_thread.joinable()) {
+            put_thread.join();
+        }
+        
+        if (commit_thread.joinable()) {
+            commit_thread.join();
+        }
+        
+        if (ack_thread.joinable()) {
+            ack_thread.join();
+        }
+        
     }
 
     grpc::Status kv_storeImpl::get(ServerContext* context, const getReq* request, reqStatus* response) {
@@ -101,9 +108,8 @@ namespace key_value_store {
         //	return Status::OK;
 	    //}
 
-        std::cout << "pear URL: " << context->peer() << std::endl;
         Request req = Request(*request);
-        //get_process(req);
+        
         try {
             if (get_thread.joinable()) {
                 get_thread.join();
@@ -139,11 +145,11 @@ namespace key_value_store {
         else {
 	        std::cout << "forwarding to tail" << std::endl;
             ClientContext _context;
-            fwdGetReq _req;
-            auto *original_req = _req.mutable_req();
-            auto *meta = original_req->mutable_meta();
-            original_req->set_key(req.key);
-            meta->set_addr(req.addr);
+            fwdGetReq _req = req.rpc_fwdGetReq();
+            //auto *original_req = _req.mutable_req();
+            //auto *meta = original_req->mutable_meta();
+            //original_req->set_key(req.key);
+            //meta->set_addr(req.addr);
             empty _resp;
             //TODO: response->set_status(KV_FWD_GET);
             Status status = tail_stub->fwdGet(&_context, _req, &_resp);
@@ -151,6 +157,8 @@ namespace key_value_store {
     }
 
     grpc::Status kv_storeImpl::put(grpc::ServerContext* context, const putReq* request, reqStatus* response) {
+        //TODO:
+        // verify key and value
         //// std::cout << "PUT CALLED!!\n";
         //// Sanity checks for key and value
         //if (request->key().length() > MAX_KEY_LEN || request->value().length() > MAX_VALUE_LEN) {
@@ -170,16 +178,10 @@ namespace key_value_store {
         //    response->set_status(KV_UPDATE_SUCCESS);
         //}
 	
-	std::cout << "id: " << id << " PUT CALLED!!\n";
-	std::cout << "peer URL: " << context->peer() << std::endl;
+	    std::cout << "id: " << id << " PUT CALLED!!\n";
 
         Request req = Request(*request);
-	if (!head) {
-		response->set_status(KV_PUT_REDIRECT);
-		return Status::OK;
-	}
 
-        //put_process(req);
         try {
             if (put_thread.joinable()) {
                 put_thread.join();
@@ -190,27 +192,31 @@ namespace key_value_store {
             std::cerr << "Error in get_process: " << e.what() << std::endl;
             return grpc::Status(grpc::StatusCode::INTERNAL, "Internal error");
         }
-	return Status::OK;
+        return Status::OK;
     }
 
-    void kv_storeImpl::put_process (Request req) {
-	if (!tail) {
-		// Acknowledge that we received the PUT request
-		std::cout << "HEAD: " << head << ", received put() request\n";
-		// TODO: response->set_status(KV_PUT_RECEIVED);
-		// TODO: Store it in the db here
-		// Prepare the forwarding request
-		ClientContext _context;
-		fwdPutReq _req;
-		auto *original_req = _req.mutable_req();
-		auto *meta = original_req->mutable_meta();
-		original_req->set_key (req.key);
-		original_req->set_value (req.value);
-		meta->set_addr(req.addr);
-		empty _resp;
-		if (next_stub) 
-			Status status = next_stub->fwdPut(&_context, _req, &_resp);
-	}
+    void kv_storeImpl::put_process(Request req) {
+	    if (head) {
+	        std::cout << "HEAD: " << head << ", received put() request\n";
+            spawnCommit(req);
+        }
+        else {
+            // TODO
+	        // Acknowledge that we received the PUT request
+	        // TODO: response->set_status(KV_PUT_RECEIVED);
+	        // TODO: Store it in the db here
+	        // Prepare the forwarding request
+	        ClientContext _context;
+            fwdPutReq _req = req.rpc_fwdPutReq();
+	        //fwdPutReq _req;
+	        //auto *original_req = _req.mutable_req();
+	        //auto *meta = original_req->mutable_meta();
+	        //original_req->set_key (req.key);
+	        //original_req->set_value (req.value);
+	        //meta->set_addr(req.addr);
+	        empty _resp;
+	        Status status = next_stub->fwdPut(&_context, _req, &_resp);
+        }
     }
     
     grpc::Status kv_storeImpl::fwdGet(ServerContext* context, const fwdGetReq* request, empty* response) {
@@ -218,47 +224,82 @@ namespace key_value_store {
         assert(tail); // Only tail shoudl receive forwarded getReq
         std::cout << "pushing to pending Q" << std::endl;
         pending_q.enqueue(Request(*request));
-        //// Sanity checks for get
-        //if (request->key().length() > MAX_KEY_LEN) {
-        //	response->set_value ("");
-        //	response->set_status(KV_FAILURE);
-        //	return Status::OK;
-	    //}
-
-        //auto part_mgr = PartitionManager::get_instance();
-        //auto partition = part_mgr->get_partition(request->key());
-        //auto value = partition->get(request->key());
-        //response->set_value(value);
-        //if (value == "") {
-        //    response->set_status(KV_GET_FAILED);
-        //} else {
-        //    response->set_status(KV_GET_SUCCESS);
-        //}
-        //response->set_value("get call successful");
         return Status::OK;
-
     }
 
     grpc::Status kv_storeImpl::fwdPut(ServerContext* context, const fwdPutReq* request, empty* response) {
-	Request req = Request(*request);
-	if (!tail) {
-		std::cout << "id: " << id << " received fwdPutReq\n";
-		try {
-	            if (put_thread.joinable()) {
-	                put_thread.join();
-        	    }
-	           put_thread = std::thread(&kv_storeImpl::put_process, this, req);
-	       } catch (const std::exception& e) {
-	           std::cerr << "Error in get_process: " << e.what() << std::endl;
-	           return grpc::Status(grpc::StatusCode::INTERNAL, "Internal error");
-	       }
-	} else {
-		std::cout << "id: " << id << " received fwdPutReq as TAIL" << std::endl;
-		std::cout << "pushing to pending Q" << std::endl;
-		pending_q.enqueue(req);
-	}
-       	//auto part_mgr = PartitionManager::get_instance();
-	return Status::OK;
+	    std::cout << "id: " << id << " received fwdPutReq\n";
+        assert(head);
+	    Request req = Request(*request);
+        spawnCommit(req);
+	    return Status::OK;
+    }
+
+    grpc::Status kv_storeImpl::commit(ServerContext* context, const fwdPutReq* request, empty* response) {
+	    std::cout << "id: " << id << " received commit\n";
+        assert(!head);
+        Request req = Request(*request);
+        spawnCommit(req);
+        return Status::OK;
+    }
+    
+    grpc::Status kv_storeImpl::ack(ServerContext* context, const empty* request, empty* response) {
+	    std::cout << "id: " << id << " received ack\n";
+        assert(!tail);
+        spawnAck();
+        return Status::OK;
+    }
+
+    void kv_storeImpl::spawnCommit(Request req) {
+        try {
+            if (commit_thread.joinable()) {
+                commit_thread.join();
+            }
+            commit_thread = std::thread(&kv_storeImpl::commit_process, this, req);
+        } catch (const std::exception& e) {
+            std::cerr << "Error in spawnCommit: " << e.what() << std::endl;
+        }
+    }
+
+    void kv_storeImpl::spawnAck() {
+        try {
+            if (ack_thread.joinable()) {
+                ack_thread.join();
+            }
+            ack_thread = std::thread(&kv_storeImpl::ack_process, this);
+        } catch (const std::exception& e) {
+            std::cerr << "Error in spawnAck: " << e.what() << std::endl;
+        }
+    }
+
+    void kv_storeImpl::commit_process(Request req) {
+        // TODO:
+        // 1. Commit to own database
+        // 2. append to sent_q
+        if (!tail) {
+	        ClientContext _context;
+            fwdPutReq _req = req.rpc_fwdPutReq();
+            empty _resp;
+            next_stub->commit(&_context, _req, &_resp);
+        }
+        else {
+            std::cout << "tail receive commit from " << req.addr << std::endl;
+            pending_q.enqueue(req);
+        }
+    }
+
+    void kv_storeImpl::ack_process() {
+        // TODO:
+        // 1. delete entry to sent_q
+        if (!head) {
+	        ClientContext _context;
+            empty _req;
+            empty _resp;
+            prev_stub->ack(&_context, _req, &_resp); 
+        }
+        else {
+            std::cout << "head received ack" << std::endl;
+        }
     }
 
     void kv_storeImpl::serveRequest(std::atomic<bool> &stop) {
@@ -277,22 +318,23 @@ namespace key_value_store {
                 _req.set_value("Get call successful");
                 _req.set_status(KV_GET_SUCCESS);
                 respStatus _resp; 
-                client_stub->sendGetResp(&_context, _req, &_resp);
+                Status status = client_stub->sendGetResp(&_context, _req, &_resp);
                 std::cout << "Sent get response to client" << std::endl;
             }
             else if (req.type == request_t::PUT) {
                 // TODO
-		std::cout << "Processing client put() request" << std::endl;
-	        std::string client_addr = req.addr;
-	        std::cout << "client_addr: " << client_addr << std::endl;
-	        client_stub = KVResponse::NewStub(grpc::CreateChannel(client_addr, grpc::InsecureChannelCredentials()));
-	        ClientContext _context;
-	        putResp _req;
-	        _req.set_old_value("Put call successful");
-	        _req.set_status(KV_GET_SUCCESS);
-	        respStatus _resp; 
-	        client_stub->sendPutResp(&_context, _req, &_resp);
-	        std::cout << "Sent put response to client" << std::endl;
+	            std::cout << "Processing client put() request" << std::endl;
+	            std::string client_addr = req.addr;
+	            std::cout << "client_addr: " << client_addr << std::endl;
+	            client_stub = KVResponse::NewStub(grpc::CreateChannel(client_addr, grpc::InsecureChannelCredentials()));
+	            ClientContext _context;
+	            putResp _req;
+	            _req.set_old_value("Put call successful");
+	            _req.set_status(KV_GET_SUCCESS);
+	            respStatus _resp; 
+	            Status status = client_stub->sendPutResp(&_context, _req, &_resp);
+                spawnAck();
+	            std::cout << "Sent put response to client" << std::endl;
             }
             else {
                 std::cerr << "Invalid request type" << std::endl;

@@ -22,7 +22,7 @@
 
 class client {
     public:
-        client(std::shared_ptr<grpc::Channel> channel, int timeout, std::string _resp_server_addr);
+        client(std::shared_ptr<grpc::Channel> channel, int timeout);
         ~client();
 
         int get(std::string key, std::string &value);
@@ -40,9 +40,8 @@ class client {
         std::string value;
 
         std::unique_ptr<grpc::Server> resp_server = nullptr;
-        //std::unique_ptr<grpc::Server> start_response_server(std::string resp_server_addr);
-        //void start_response_server(std::string resp_server_addr, std::atomic<bool>& stop);
-        void start_response_server(std::unique_ptr<grpc::Server>& server);
+        void start_response_server(std::unique_ptr<grpc::Server>& server, std::string& port);
+        void runRespServer(std::unique_ptr<grpc::Server>& server);
 
         std::thread server_thread;
         std::atomic<bool> stop = true; // notify the sever to stop

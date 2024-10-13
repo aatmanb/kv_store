@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <chrono>
+#include <string>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
@@ -17,17 +18,16 @@ using grpc::Channel;
 using grpc::ClientContext;
 using grpc::Status;
 
-client::client(std::shared_ptr<Channel> channel, int timeout, std::string _resp_server_addr) : 
+client::client(std::shared_ptr<Channel> channel, int timeout) : 
     stub_(kv_store::NewStub(channel)), 
     id(0), 
-    timeout(timeout),
-    resp_server_addr(_resp_server_addr)
+    timeout(timeout)
 {
     // Spawn two threads
     // thread 0: run the server
     // thread 1: continue with client construction
-    server_thread = std::thread(&client::start_response_server, this, std::ref(resp_server));
-    //resp_server = start_response_server("0.0.0.0:"+resp_server_addr);
+    start_response_server(resp_server, resp_server_addr);
+    server_thread = std::thread(&client::runRespServer, this, std::ref(resp_server));
     std::cout << "client " << id << " started response server" << std::endl;
 }
 
@@ -47,7 +47,7 @@ client::~client() {
 
 //std::unique_ptr<grpc::Server>
 void
-client::start_response_server(std::unique_ptr<grpc::Server>& server) {
+client::start_response_server(std::unique_ptr<grpc::Server>& server, std::string& port) {
     std::string addr = "0.0.0.0:0";
     
     grpc::EnableDefaultHealthCheckService(true);
@@ -56,16 +56,25 @@ client::start_response_server(std::unique_ptr<grpc::Server>& server) {
     int selected_port;
     // Listen on the given address without any authentication mechanism.
     builder.AddListeningPort(addr, grpc::InsecureServerCredentials(), &selected_port);
-    std::string chosen_addr = "0.0.0.0" + std::to_string(selected_port);
-    KVResponseService service(chosen_addr, &rcvd_resp, &status, &value);
+    //port = std::to_string(selected_port);
+    
+    // Finally assemble the server.
+    server = std::move(builder.BuildAndStart());
+   
+    port = std::to_string(selected_port); 
+    std::string selected_addr = "0.0.0.0:" + std::to_string(selected_port);
+    KVResponseService service(selected_addr, &rcvd_resp, &status, &value);
     // Register "service" as the instance through which we'll communicate with
     // clients. In this case it corresponds to an *synchronous* service.
     builder.RegisterService(&service);
     
-    // Finally assemble the server.
-    server = std::move(builder.BuildAndStart());
-    
-    std::cout << "response server listening on port " << selected_port << std::endl;
+    std::cout << "response server listening on selected_port " << selected_port << std::endl;
+    std::cout << "response server listening on port " << port << std::endl;
+    std::cout << "response server listening on addr " << selected_addr << std::endl;
+}
+
+void
+client::runRespServer(std::unique_ptr<grpc::Server>& server) {
     // Wait for the server to shutdown. Note that some other thread must be
     // responsible for shutting down the server for this call to ever return.
     server->Wait();
@@ -114,7 +123,9 @@ client::put(std::string key, std::string value, std::string &old_value) {
     request.set_key(key);
     request.set_value(value);
     auto *_meta = request.mutable_meta();
-    _meta->set_addr("localhost:"+resp_server_addr);
+    std::string addr = "localhost:"+resp_server_addr;
+    std::cout << "addr " << addr << std::endl;
+    _meta->set_addr(addr);
 
     reqStatus response;
 
@@ -124,15 +135,15 @@ client::put(std::string key, std::string value, std::string &old_value) {
 
     Status status = stub_->put(&context, request, &response);
     if (status.ok()) {
-	std::cout << "waiting for server to respond: " << std::endl;
-	while (!(rcvd_resp)) {
-	     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-	}
-	rcvd_resp.store(false);
-	std::cout << "response server passed the value to client: " << this->value << std::endl;
-        old_value = this->value;
-        return this->status;
-    }
+        std::cout << "waiting for server to respond: " << std::endl;
+        while (!rcvd_resp.load()) {
+             std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        rcvd_resp.store(false);
+        std::cout << "response server passed the value to client: " << this->value << std::endl;
+            old_value = this->value;
+            return this->status;
+        }
     //std::cerr << __FILE__ << "[" << __LINE__ << "]" << status.error_message() << std::endl;
     return -1;
 }

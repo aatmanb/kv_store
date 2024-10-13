@@ -1,6 +1,7 @@
 # Add the client sources
 add_library(client 
-            client.cc)
+            client.cc
+            )
 
 # Include the directory for headers
 target_include_directories(client PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

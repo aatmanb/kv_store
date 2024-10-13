@@ -39,6 +39,7 @@ service kv_store {
     // Used by the service internally
     rpc fwdGet (fwdGetReq) returns (empty) {};
     rpc fwdPut (fwdPutReq) returns (empty) {};
+    rpc commit (fwdPutReq) returns (empty) {};
     rpc ack (empty) returns (empty) {};
 }
 
