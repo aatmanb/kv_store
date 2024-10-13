@@ -26,7 +26,7 @@ client::client(std::shared_ptr<Channel> channel, int timeout, std::string _resp_
     // Spawn two threads
     // thread 0: run the server
     // thread 1: continue with client construction
-    server_thread = std::thread(&client::start_response_server, this, "0.0.0.0:"+resp_server_addr, std::ref(resp_server));
+    server_thread = std::thread(&client::start_response_server, this, std::ref(resp_server));
     //resp_server = start_response_server("0.0.0.0:"+resp_server_addr);
     std::cout << "client " << id << " started response server" << std::endl;
 }
@@ -47,21 +47,25 @@ client::~client() {
 
 //std::unique_ptr<grpc::Server>
 void
-client::start_response_server(std::string addr, std::unique_ptr<grpc::Server>& server) {
-    KVResponseService service(addr, &rcvd_resp, &status, &value);
+client::start_response_server(std::unique_ptr<grpc::Server>& server) {
+    std::string addr = "0.0.0.0:0";
     
     grpc::EnableDefaultHealthCheckService(true);
     grpc::reflection::InitProtoReflectionServerBuilderPlugin();
     grpc::ServerBuilder builder;
+    int selected_port;
     // Listen on the given address without any authentication mechanism.
-    builder.AddListeningPort(addr, grpc::InsecureServerCredentials());
+    builder.AddListeningPort(addr, grpc::InsecureServerCredentials(), &selected_port);
+    std::string chosen_addr = "0.0.0.0" + std::to_string(selected_port);
+    KVResponseService service(chosen_addr, &rcvd_resp, &status, &value);
     // Register "service" as the instance through which we'll communicate with
     // clients. In this case it corresponds to an *synchronous* service.
     builder.RegisterService(&service);
     
     // Finally assemble the server.
     server = std::move(builder.BuildAndStart());
-    std::cout << "response server listening on " << addr << std::endl;
+    
+    std::cout << "response server listening on port " << selected_port << std::endl;
     // Wait for the server to shutdown. Note that some other thread must be
     // responsible for shutting down the server for this call to ever return.
     server->Wait();
