@@ -69,11 +69,20 @@ message dbPath {
 
 message notifyRestartResponse {
     string db_path = 1;
-    string chain_addr = 2;
+    string pred_addr = 2;
+    string head_addr = 3;
 }
 
 message failCommand {
     bool clean = 1;
+}
+
+message headFailureNotification {
+    string new_head = 1;
+}
+
+message tailFailureNotification {
+    string new_tail = 1;
 }
 
 service kv_store {
@@ -93,6 +102,10 @@ service kv_store {
     rpc heartBeat(empty) returns (empty) {};
 
     // Used for reconfiguration
+    rpc notifyHeadFailure (headFailureNotification) returns (empty) {};
+
+    rpc notifyTailFailure (tailFailureNotification) returns (empty) {};
+
     rpc notifyPredFailure (notifyPredFailureReq) returns (empty) {};
 
     rpc notifySuccessorFailure (notifySuccessorFailureReq) returns (empty) {};

@@ -15,6 +15,19 @@ private:
     std::condition_variable condVar;         // Condition variable for synchronization
 
 public:
+    ThreadSafeQueue() = default;
+
+    ThreadSafeQueue(ThreadSafeQueue &other) = default;
+
+    ThreadSafeQueue& operator= (const ThreadSafeQueue&& other) {
+        this->queue = std::move(other.queue);
+        return *this;
+    }
+
+    ThreadSafeQueue(ThreadSafeQueue&& other) {
+        this->queue = std::move(other.queue);
+    }
+
     // Add an element to the queue
     void enqueue(const T& item) {
         std::lock_guard<std::mutex> lock(mtx); // Lock the queue
@@ -41,6 +54,14 @@ public:
         T item = queue.front();                 // Get the front item
         queue.pop();                            // Remove it from the queue
         return item;
+    }
+
+    std::optional<T> front() {
+        std::lock_guard<std::mutex> lock(mtx);  // Lock the queue
+        if (queue.empty()) {
+            return std::nullopt;                // Return empty if queue is empty
+        }
+        return queue.front();                 // Get the front item
     }
 
     // Check if the queue is empty

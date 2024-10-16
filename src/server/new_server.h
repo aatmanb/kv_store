@@ -1,6 +1,12 @@
 #pragma once
 
 #include "dbutils.h"
+#include "kv_store.grpc.pb.h"
+// #include "node.grpc.pb.h"
+#include "worker.h"
+#include "thread_safe_queue.h"
+#include "thread_safe_hashmap.h"
+#include "request.h"
 #include <iostream>
 #include <string>
 
@@ -11,12 +17,6 @@
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/health_check_service_interface.h>
-
-#include "kv_store.grpc.pb.h"
-// #include "node.grpc.pb.h"
-#include "worker.h"
-#include "thread_safe_queue.h"
-#include "request.h"
 
 // ABSL_FLAG(uint16_t, port, 50051, "Server port for the service");
 
@@ -31,8 +31,6 @@ namespace key_value_store {
  
     private: 
         uint32_t id;
-        std::atomic<bool> stop_server;
-    
 	    const char *db_name;
 
         std::atomic<bool> is_tail;
@@ -53,21 +51,21 @@ namespace key_value_store {
        
         ThreadSafeQueue<Request> pending_q; 
         ThreadSafeQueue<Request> sent_queue;
+        ThreadSafeHashMap<std::string, std::string> local_map;
         
         std::string client_addr; // The client which send the request 
  
         grpc::Status get(grpc::ServerContext* context, const getReq* request, reqStatus* response) override;
         grpc::Status put(grpc::ServerContext* context, const putReq* request, reqStatus* response) override;
-        grpc::Status fail(grpc::ServerContext* context, const failCommand* request, reqStatus* response) override;
-        
+        grpc::Status fail(grpc::ServerContext* context, const failCommand* request, empty* response) override;
         
         std::unique_ptr<KVResponse::Stub> client_stub = nullptr;
         
-	    // Internal RPCs
+        // Internal RPCs
         grpc::Status fwdGet(grpc::ServerContext* context, const fwdGetReq* request, empty* response) override;
         grpc::Status fwdPut(grpc::ServerContext *context, const fwdPutReq* request, empty *response) override;
         grpc::Status commit(grpc::ServerContext *context, const fwdPutReq* request, empty *response) override;
-        grpc::Status ack(grpc::ServerContext *context, const empty* request, empty *response) override;
+        grpc::Status ack(grpc::ServerContext *context, const putAck* request, empty *response) override;
 
         // Reconfiguration RPCs
         grpc::Status notifyPredFailure(grpc::ServerContext* context, 
@@ -76,7 +74,11 @@ namespace key_value_store {
                 const notifySuccessorFailureReq* request, empty *response) override;
         grpc::Status addTailNode(grpc::ServerContext *context, const addTailNodeReq *req, 
                 empty* response) override;
-        grpc::Status populateDB(grpc::ServerContext *context, const empty *request, dbPath* response) override;
+        grpc::Status notifyHeadFailure(grpc::ServerContext* context,
+                const headFailureNotification* request, empty *response) override;
+        grpc::Status notifyTailFailure(grpc::ServerContext* context,
+                const tailFailureNotification* request, empty *response) override;
+        // grpc::Status populateDB(grpc::ServerContext *context, const empty *request, dbPath* response) override;
 
         // std::thread resp_thread; // This threads pops request from pending_q and sends response to the client. This is used by tail node only.
         Worker resp_thread;
@@ -89,10 +91,14 @@ namespace key_value_store {
         void get_process(Request req);
         void put_process(Request req);
         void commit_process(Request req);
-        void ack_process();
+        void ack_process(Request req);
         /**
          * Resends lost updates in the case of failure of an intermediate node
          */
         void process_lost_updates();
+        /**
+         * Commits updates to db from sent queue after failure of tail
+         */
+        void commit_sent_updates();
     };
 }

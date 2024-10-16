@@ -34,6 +34,10 @@ namespace key_value_store
         std::thread executor;
 
     public:
+        Worker() {
+            should_terminate.store(false);
+        }
+
         void pause() {
             should_terminate.store(true);
             if (executor.joinable()) {
