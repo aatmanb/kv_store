@@ -110,10 +110,10 @@ namespace key_value_store {
 
                     if (!status.ok()) {
                         servers_to_remove.push_back(elem.first);
-                        COUT << "Detected failure of " << elem.first << "\n";
+                        COUT << "Detected failure of node: " << elem.first << "\n";
                     }
                 }
-                std::this_thread::sleep_for(std::chrono::seconds(5));
+                std::this_thread::sleep_for(std::chrono::milliseconds(health_check_interval));
             }
 
             for (auto& server: servers_to_remove) {
@@ -123,7 +123,7 @@ namespace key_value_store {
     }
 
     void ReplicationManager::start_health_check() {
-        health_check_thread = std::thread(&ReplicationManager::start_health_check, this);
+        health_check_thread = std::thread(&ReplicationManager::check_health, this);
     }
 
     ReplicationManager::~ReplicationManager() {
