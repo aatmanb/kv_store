@@ -15,22 +15,16 @@
 #define DB_UPDATE_SUCCESS 1
 
 namespace key_value_store {
+    inline std::string get_db_name_for_volume(int volume) {
+        return std::string("db_volume_") + std::to_string(volume);
+    }
+
     class DatabaseUtils {
         public:
             DatabaseUtils(const char *db_name) {
-                if (!is_db_open) {
-                    file_name = db_name;
-                    int retval = sqlite3_open(file_name, &kv_persist_store); 
-                    is_db_open = (retval == SQLITE_OK);
-		    std::cout << "DB creation process is_db_open: " << is_db_open << " retval: " << retval << "\n";
-                    if (!is_db_open) {
-                        sqlite3_close(kv_persist_store);
-                    } else {
-                        // Retry if create table fails?
-			    std::cout << "Creating Table\n";
-                        int create_status = create_table();
-                    }
-                }
+                file_name = db_name;
+                is_db_open = false;
+                open();
             }
 
             std::string put_value (const char *key, const char* value) {
@@ -41,9 +35,31 @@ namespace key_value_store {
                 return get_value_internal(key);
             }
 
+            void open() {
+                if (!is_db_open) {
+                    std::cout << "Opening connection to db\n";
+                    int retval = sqlite3_open(file_name, &kv_persist_store); 
+                    is_db_open = (retval == SQLITE_OK);
+		            std::cout << "DB creation process is_db_open: " << is_db_open << " retval: " << retval << "\n";
+                    if (!is_db_open) {
+                        sqlite3_close(kv_persist_store);
+                    } else {
+                        // Retry if create table fails?
+			            std::cout << "Creating Table\n";
+                        int create_status = create_table();
+                    }
+                }
+            }
+
+            void close() {
+                if (!is_db_open) return;
+                std::cout << "Closing connection to db\n";
+                sqlite3_close(kv_persist_store);
+                is_db_open = false;
+            }
+
             ~DatabaseUtils() {
-		std::cout << "DB connection closed prematurely\n";
-                sqlite3_close (kv_persist_store);
+                close();
             }
 
 

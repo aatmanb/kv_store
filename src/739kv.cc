@@ -176,3 +176,8 @@ int kv739_put(const std::string key, const std::string value, std::string &old_v
    
     return status;
 }
+
+int kv739_die(char * server_name, int clean) {
+    std::cout << "Killing server: " << server_name << "\n";
+    return client_instance->kill(std::string(server_name), clean);
+}

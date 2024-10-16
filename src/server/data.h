@@ -22,6 +22,6 @@ namespace key_value_store {
 
         std::shared_mutex rw_mutex;
 
-	std::unique_ptr<DatabaseUtils> db_utils;
+	    std::unique_ptr<DatabaseUtils> db_utils;
     };
 }
