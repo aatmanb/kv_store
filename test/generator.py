@@ -33,6 +33,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--num_keys', type=int, default=1000, help='number of key-value pairs to generate')
     parser.add_argument('--num_real_keys', type=int, default=80, help='percentage of real key-value pairs')
+    parser.add_argument('--base_dir', type=str, default='.', help='where to place data')
     parser.add_argument('--real-fname', type=str, default='real')
     parser.add_argument('--fake-fname', type=str, default='fake')
     parser.add_argument('--key-max-length', type=int, default=50)
@@ -43,8 +44,9 @@ if __name__ == "__main__":
 
     num_real_keys = (int)((args.num_real_keys/100) * args.num_keys)
     num_fake_keys = args.num_keys - num_real_keys
+    base_dir = args.base_dir
 
-    data_dir = 'data/'
+    data_dir = base_dir + '/data/'
     num_clients = args.num_clients
 
     for i in range(num_clients):

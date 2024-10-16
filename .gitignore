@@ -7,8 +7,10 @@ Dockerfile
 src/build
 .vscode
 
-db/
+test/single_server_tests/db/
 
-test/data
+test/single_server_tests/data
+test/single_server_tests/__pycache__
+test/single_server_tests/out/
 build/
 bin/
