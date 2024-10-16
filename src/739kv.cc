@@ -49,15 +49,14 @@ bool verifyValue(std::string s) {
     return true;
 }
 
-int kv739_init(const std::string server_name) {
+int kv739_init(const std::string& config_file) {
     if (client_instance != nullptr) {
         std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Client already initialized" << std::endl;
         return -1;
     }
 
     try {
-	    std::cout << "Server name: " << server_name << "\n";
-        client_instance = new client(grpc::CreateChannel(server_name, grpc::InsecureChannelCredentials()), timeout);
+        client_instance = new client(timeout, config_file);
         return 0;
     }
     catch (const std::exception &e) {

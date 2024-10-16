@@ -18,11 +18,28 @@ using grpc::Channel;
 using grpc::ClientContext;
 using grpc::Status;
 
-client::client(std::shared_ptr<Channel> channel, int timeout) : 
-    stub_(kv_store::NewStub(channel)), 
+client::client(int timeout, const std::string& config_file) : 
     id(0), 
     timeout(timeout)
 {
+    std::cout << "Parsing Chain Config file" << std::endl;
+
+    partitions = parseConfigFile(config_file); 
+    num_partitions = partitions.size(); 
+    std::cout << "Number of partitions: " << num_partitions << std::endl;
+
+    std::cout << "Establishing gRPC channels and setting up stubs" << std::endl;
+    // establish a channel corresponding to each stub
+    for (int i=0; i<num_partitions; i++) {
+        std::string server_name = "localhost:" + partitions[i].getServer();
+        std::cout << "Establishing channel with server " << server_name << std::endl;
+        std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(server_name, grpc::InsecureChannelCredentials());
+        //std::unique_ptr<kv_store::Stub> stub_(kv_store::NewStub(channel));
+        std::cout << "Creating stub" << std::endl;
+        stubs.push_back(std::move(kv_store::NewStub(channel)));
+    }
+     
+    std::cout << "Starting response server" << std::endl;
     // Spawn two threads
     // thread 0: run the server
     // thread 1: continue with client construction
@@ -68,8 +85,6 @@ client::start_response_server(std::unique_ptr<grpc::Server>& server, std::string
     port = std::to_string(selected_port); 
     std::string selected_addr = "0.0.0.0:" + std::to_string(selected_port);
     
-    std::cout << "response server listening on selected_port " << selected_port << std::endl;
-    std::cout << "response server listening on port " << port << std::endl;
     std::cout << "response server listening on addr " << selected_addr << std::endl;
     started.store(true);
     server->Wait();
@@ -91,17 +106,30 @@ client::get(std::string key, std::string &value) {
     auto deadline = std::chrono::system_clock::now() + std::chrono::seconds(timeout);
     context.set_deadline(deadline);
     
+    std::unique_ptr<kv_store::Stub>& stub_ = getStub(key);
     Status status = stub_->get(&context, request, &response);
+    int req_retry = req_retry_limit;
+
+    while (!status.ok() && (req_retry>0)) {
+        // Send the request to a another server because previous rpc failed
+        req_retry--;
+        std::unique_ptr<kv_store::Stub>& stub_ = getStub(key, true);
+        status = stub_->get(&context, request, &response);
+    }
+
     if (status.ok()) {
+        // TODO: resp_retry_limit
         std::cout << "waiting for server to respond: " << std::endl;
         while(!(rcvd_resp.load())) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            //std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         rcvd_resp.store(false);
         std::cout << "response server passed the value to client: " << this->value << std::endl;
         value = this->value;
         return this->status;
     }
+
+    // We will reach here if req_retry_limit was reached
     std::cerr << __FILE__ << "[" << __LINE__ << "]" << status.error_message() << std::endl;
     return -1;
         
@@ -119,7 +147,6 @@ client::put(std::string key, std::string value, std::string &old_value) {
     request.set_value(value);
     auto *_meta = request.mutable_meta();
     std::string addr = "localhost:"+resp_server_addr;
-    std::cout << "addr " << addr << std::endl;
     _meta->set_addr(addr);
 
     reqStatus response;
@@ -128,10 +155,19 @@ client::put(std::string key, std::string value, std::string &old_value) {
     auto deadline = std::chrono::system_clock::now() + std::chrono::seconds(timeout);
     context.set_deadline(deadline);
 
+    std::unique_ptr<kv_store::Stub>& stub_ = getStub(key);
     Status status = stub_->put(&context, request, &response);
-//    std::cout << "Put called to server" << std::endl;
-//    std::cout << "Status Code: " << status.error_code() << std::endl; std::cout << "Error Message: " << status.error_message() << std::endl;
+    int req_retry = req_retry_limit;
+
+    while (!status.ok() && (req_retry>0)) {
+        // Send the request to a another server because previous rpc failed
+        req_retry--;
+        //std::unique_ptr<kv_store::Stub>& stub_ = getStub(key, true);
+        status = stub_->put(&context, request, &response);
+    }
+
     if (status.ok()) {
+        // TODO: resp_retry_limit
         std::cout << "waiting for server to respond: " << std::endl;
         while (!rcvd_resp.load()) {
              std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -140,10 +176,31 @@ client::put(std::string key, std::string value, std::string &old_value) {
         std::cout << "response server passed the value to client: " << this->value << std::endl;
             old_value = this->value;
             return this->status;
-        }
-    //std::cerr << __FILE__ << "[" << __LINE__ << "]" << status.error_message() << std::endl;
+    }
+    std::cerr << __FILE__ << "[" << __LINE__ << "]" << status.error_message() << std::endl;
     return -1;
 }
+
+std::unique_ptr<kv_store::Stub>
+client::createStub(const std::string& port) {
+    std::string server_name = "localhost:" + port;
+    std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(server_name, grpc::InsecureChannelCredentials());
+    return kv_store::NewStub(channel);
+}
+
+std::unique_ptr<kv_store::Stub>& 
+client::getStub(const std::string& key, bool retry) {
+    CustomHash hash;
+    int partition_id = hash(key) % num_partitions;
+    
+    if (retry) {
+        PartitionConfig partition = partitions[partition_id];
+        std::unique_ptr<kv_store::Stub> stub_ = createStub(partition.getServer());
+        stubs[partition_id] = std::move(stub_);
+    }
+
+    return stubs[partition_id];
+} 
 
 
 KVResponseService::KVResponseService(std::atomic<bool> *_rcvd_resp, int *_status, std::string *_value):

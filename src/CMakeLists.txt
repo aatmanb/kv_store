@@ -7,6 +7,7 @@ add_library(739kv SHARED
 target_include_directories(739kv PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CLIENT_DIR}
+    ${CMAKE_UTILS_DIR}
 )
 
 set_target_properties(739kv PROPERTIES

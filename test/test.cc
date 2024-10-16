@@ -19,12 +19,12 @@
 
 #include "739kv.h"
 
-ABSL_FLAG(std::string, target, "localhost:9876", "Server address");
 ABSL_FLAG(int, id, -1, "Name of the server");
 ABSL_FLAG(std::string, real, "", "path to real csv file");
 ABSL_FLAG(std::string, fake, "", "path to fake csv file"); 
 // ABSL_FLAG(bool, crash_consistency_test, false, "True if running crash consistency test");
 ABSL_FLAG(int32_t, test_type, 1, "Type of test: 1 (for correctness), 2 (for crash consistency), 3 (for performance)");
+ABSL_FLAG(std::string, config_file, "", "chain configuration file");
 
 int id;
 
@@ -33,13 +33,13 @@ std::unordered_map<std::string, std::string> db;
 std::vector<std::string> keys_populated;
 int num_keys_populated = 0;
 
-void runGetTest(std::string target_str, uint16_t name) {
+void runGetTest(std::string config_file, uint16_t name) {
     printf("----------- [test] Start GetTest ------------\n");
     std::string test_key = "connection_test_key";
     std::string test_value;
     int status = -1; // Error by default
-    kv739_init(target_str); 
-    for (int i=0; i<1; i++) { 
+    kv739_init(config_file); 
+    for (int i=0; i<10; i++) { 
         status = kv739_get(test_key, test_value);
         std::cout << "[client " << name << "] " << "status: " << status << " " << "get" << "(" << test_key << ")" << ": " << test_value << std::endl;
     }
@@ -47,15 +47,17 @@ void runGetTest(std::string target_str, uint16_t name) {
     printf("----------- [test] End GetTest ------------\n");
 }
 
-void runPutTest(std::string target_str, uint16_t name) {
+void runPutTest(std::string config_file, uint16_t name) {
     printf("----------- [test] Start PutTest ------------\n");
     std::string test_key = "connection_test_key";
     std::string test_value = "connection_test_value";
     std::string old_value;
     int status = -1; // Error by default
  
-    kv739_init(target_str);
-    status = kv739_put(test_key, test_value, old_value);
+    kv739_init(config_file);
+    for (int i=0; i<10; i++) { 
+        status = kv739_put(test_key, test_value, old_value);
+    }
     kv739_shutdown();
     printf("----------- [test] End PutTest ------------\n");
 }
@@ -95,7 +97,7 @@ int getKeyNumber(float skew_factor) {
     }
 }
 
-int populateDB(std::string target_str, std::string fname, bool crash_consistency_test) {
+int populateDB(std::string config_file, std::string fname, bool crash_consistency_test) {
     printf("----------- [test] Start populateDB ------------\n");
     std::ifstream fp;
     std::string line;
@@ -113,7 +115,7 @@ int populateDB(std::string target_str, std::string fname, bool crash_consistency
         std::exit(1);
     }
 
-    kv739_init(target_str);
+    kv739_init(config_file);
     while(std::getline(fp, line)) {
         std::chrono::high_resolution_clock::time_point start;
         std::chrono::high_resolution_clock::time_point end;
@@ -141,17 +143,17 @@ int populateDB(std::string target_str, std::string fname, bool crash_consistency
 
             if (status == -1) {
                 std::cout << __FILE__ << "[" << __LINE__ << "]" << "Error: couldn't put() key into database" << std::endl;
-                if (num_retry == max_retry) {
+                //if (num_retry == max_retry) {
                     if (crash_consistency_test) {
-                        std::cout << __FILE__ << "[" << __LINE__ << "]" << "Error: reached retry limit " << max_retry << ". Aborting populateDB and moving to get(). client:  " << id << std::endl;
+                        //std::cout << __FILE__ << "[" << __LINE__ << "]" << "Error: reached retry limit " << max_retry << ". Aborting populateDB and moving to get(). client:  " << id << std::endl;
                         abort = true;
                         break;
                     }
                     else {
-                        std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Error: reached retry limit " << max_retry << " . Exiting client " << id << std::endl;
+                        //std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Error: reached retry limit " << max_retry << " . Exiting client " << id << std::endl;
                         std::exit(1);
                     }
-                }
+                //}
                 num_retry++;
                 std::this_thread::sleep_for(std::chrono::seconds(wait_before_retry));
             }
@@ -191,7 +193,7 @@ int populateDB(std::string target_str, std::string fname, bool crash_consistency
     return avg_duration;
 }
 
-int runCorrectnessTest(std::string target_str, std::string real, std::string fake, bool crash_consistency_test) {
+int runCorrectnessTest(std::string config_file, std::string real, std::string fake, bool crash_consistency_test) {
     printf("----------- [test] Start Correctess Test ------------\n");
     std::ifstream fp;
     std::string line;
@@ -218,7 +220,7 @@ int runCorrectnessTest(std::string target_str, std::string real, std::string fak
     std::cout << "Testing real keys" << std::endl;
     std::cout << std::endl;
 
-    kv739_init(target_str); 
+    kv739_init(config_file); 
     //while(std::getline(fp, line)) {
     for (num_reads_performed=0; num_reads_performed < num_reads_to_perform; num_reads_performed++) {
         key_number = getKeyNumber(0.1);
@@ -246,13 +248,14 @@ int runCorrectnessTest(std::string target_str, std::string real, std::string fak
 
             if (status == -1) {
                 std::cout << __FILE__ << "[" << __LINE__ << "]" << "Error: couldn't get() value from database" << std::endl;
-                if (num_retry == max_retry) {
-                    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Error: reached retry limit " << max_retry << " . Exiting client " << id << std::endl;
-                    std::exit(1);
-                }
+                //if (num_retry == max_retry) {
+                //    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Error: reached retry limit " << max_retry << " . Exiting client " << id << std::endl;
+                //    std::exit(1);
+                //}
                 if (!crash_consistency_test) {
                     // Retries are expected for crash consistency test so we don't error out
-                    num_retry++;
+                    //num_retry++;
+                    std::exit(1);
                 }
                 std::this_thread::sleep_for(std::chrono::seconds(wait_before_retry));
             }
@@ -311,13 +314,14 @@ int runCorrectnessTest(std::string target_str, std::string real, std::string fak
 
             if (status == -1) {
                 std::cout << __FILE__ << "[" << __LINE__ << "]" << "Error: couldn't get() value from database" << std::endl;
-                if (num_retry == max_retry) {
-                    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Error: reached retry limit " << max_retry << " . Exiting client " << id << std::endl;
-                    std::exit(1);
-                }
+                //if (num_retry == max_retry) {
+                //    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Error: reached retry limit " << max_retry << " . Exiting client " << id << std::endl;
+                //    std::exit(1);
+                //}
                 if (!crash_consistency_test) {
                     // Retries are expected for crash consistency test so we don't error out
-                    num_retry++;
+                    //num_retry++;
+                    std::exit(1);
                 }
                 std::this_thread::sleep_for(std::chrono::seconds(wait_before_retry));
             }
@@ -362,7 +366,7 @@ std::string generate_random_value(std::uniform_int_distribution<> &dist_length, 
     return res;
 }
 
-void run_performance_test(std::string target_str, int write_percentage=10) {
+void run_performance_test(std::string config_file, int write_percentage=10) {
     const std::vector<int> percentiles = {50, 70, 90, 99};
     int key_number;
     int total_duration = 0;
@@ -372,7 +376,7 @@ void run_performance_test(std::string target_str, int write_percentage=10) {
     std::chrono::high_resolution_clock::time_point start;
     std::chrono::high_resolution_clock::time_point end;
 
-    kv739_init(target_str); 
+    kv739_init(config_file); 
 
     // Initialize the random engine and distribution
     std::random_device rd;  // Random seed
@@ -464,28 +468,25 @@ int main(int argc, char** argv) {
         std::exit(1);
     }
 
-    // Instantiate the client. It requires a channel, out of which the actual RPCs
-    // are created. This channel models a connection to an endpoint specified by
-    // the argument "--target=" which is the only expected argument.
-    std::string target_str = absl::GetFlag(FLAGS_target);
     std::string real_fname = absl::GetFlag(FLAGS_real);
     std::string fake_fname = absl::GetFlag(FLAGS_fake);
     // bool crash_consistency_test = absl::GetFlag(FLAGS_crash_consistency_test);
     int32_t test_type = absl::GetFlag(FLAGS_test_type);
+    std::string config_file = absl::GetFlag(FLAGS_config_file);
 
-    runPutTest(target_str, id);
-    runGetTest(target_str, id); 
+    runPutTest(config_file, id);
+    runGetTest(config_file, id); 
     
     //bool crash_consistency_test = (test_type == 2);
     //bool performance_test = (test_type == 3);
-    //int populate_duration_1 = populateDB(target_str, real_fname, crash_consistency_test);
+    //int populate_duration_1 = populateDB(config_file, real_fname, crash_consistency_test);
 
     //if (performance_test) {
     //    std::cout << "Starting performance test......";
-    //    run_performance_test(target_str, 10);
+    //    run_performance_test(config_file, 10);
     //} else {
     //    std::cout << "crash_consistency_test: " << crash_consistency_test << std::endl;
-    //    int read_duration = runCorrectnessTest(target_str, real_fname, fake_fname, crash_consistency_test);
+    //    int read_duration = runCorrectnessTest(config_file, real_fname, fake_fname, crash_consistency_test);
 
     //    std::cout << "populate_duration_1: " << populate_duration_1 << " us" << std::endl;
     //    std::cout << "read_duration: " << read_duration << " us" << std::endl;
