@@ -1,17 +1,20 @@
 import argparse
 import sys
 import os
+import subprocess
+import time
+
 import crash_consistency
 import correctness
 import performance
 import sanity
-import subprocess
 
 bin_dir = ''
 db_dir = ''
 log_dir = ''
 
 server_processes = []
+client_processes = []
 
 def getPartitionConfig(config_file):
     # initialize the partition dictionary
@@ -86,18 +89,46 @@ def createChain(server_list):
     return
 
 def createService(config_file):
+    #TODO: start the manager before creating chains
+
     partitions = getPartitionConfig(config_file)
     for _, servers in partitions.items():
         createChain(servers)
         
-#def createClient(config_file): 
-
 def terminateService():
     for process in server_processes:
         process.terminate()
-        process.wait()
+        returncode = process.wait()
+        print(f"termination return code: {returncode}")
+
+def startClients(args):
+    for client_id in range(args.num_clients):
+        cmd = 'python3 client.py'
+        cmd += ' ' + f'--id={client_id}'
+        cmd += ' ' + f'--config-file={args.config_file}'
+        cmd += ' ' + f'--real-fname={args.real_fname}'
+        cmd += ' ' + f'--fake-fname={args.fake_fname}'
+        cmd += ' ' + f'--test-type={args.test_type}'
+        cmd += ' ' + f'--top-dir={args.top_dir}'
+        cmd += ' ' + f'--log-dir={args.log_dir}'
+        
+        print(f"Starting client {client_id}")
+        print(cmd)
+        log_file = log_dir + f'client_{client_id}.log'
+
+        with open(log_file, 'w') as f:
+            process = subprocess.Popen(cmd, shell=True, stdout=f, stderr=f)
+            client_processes.append(process)
+
+
+def terminateClients():
+    for process in client_processes:
+        process.terminate()
+        returncode = process.wait()
+        print(f"termination return code: {returncode}")
 
 def terminateTest():
+    terminateClients()
     terminateService()
     sys.exit(1)   
 
@@ -105,26 +136,17 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--id', type=int, default=1, help='Client id')
     parser.add_argument('--config-file', type=str, default='chain_config.txt', help='chain configuration file')
     parser.add_argument('--real-fname', type=str, default='real')
     parser.add_argument('--fake-fname', type=str, default='fake')
     parser.add_argument('--test-type', type=str, default='sanity', help='sanity, correctness, crash_consistency, perf')
-    parser.add_argument('--top-dir', type=str, default='', help='path to top dir')
+    parser.add_argument('--top-dir', type=str, default='../../', help='path to top dir')
     parser.add_argument('--log-dir', type=str, default='out/', help='path to log dir')
+    parser.add_argument('--num-clients', type=int, default=1, help='number of clients')
 
     args = parser.parse_args()
     
-    if (args.top_dir):
-        top_dir = args.top_dir
-    else:
-        top_dir = '../../'
-
-    client_id = args.id
-    if (id == -1): 
-        print ('Client id invalid. Please pass a positive integer as the client id.') 
-        sys.exit(1)
-
+    top_dir = args.top_dir
     test_type = args.test_type
     config_file = top_dir + args.config_file
     
@@ -135,36 +157,20 @@ if __name__ == "__main__":
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
+    #try:
+    #    createService(config_file)
+    #except Exception as e:
+    #    print(f"An unexpected exception occured: {e}")
+    #    terminateTest()
+    #    
+    #time.sleep(5)
+
     try:
-        createService(config_file)
+        startClients(args)
     except Exception as e:
         print(f"An unexpected exception occured: {e}")
         terminateTest()
-        
 
-    crash_consistency_test = (test_type == 'crash_consistency')
-    performance_test = (test_type == 'perf')
-
-    db_keys = {}
-    overwritten_keys = {}
-
-    try:
-        if (test_type == 'sanity'):
-            sanity.runSanityTest(config_file, id)
-        elif (test_type == 'perf'):
-            # Populate DB
-            db_keys, overwritten_keys = crash_consistency.populateDB(config_file, args.real_fname, crash_consistency_test)
-            performance.performanceTest(config_file, 10, db_keys)
-        elif (test_type == 'crash_consistency'):
-            correctness.correctnessTest(config_file, args.fake_fname, db_keys, overwritten_keys, crash_consistency_test)
-        elif (type_type == 'correctness'):
-            correctness.correctnessTest(config_file, args.fake_fname, db_keys, overwritten_keys)
-        else:
-            raise ValueError(f"Invalid test type {test_type}")
-    except Exception as e:
-        print(f"An unexpected exception occured: {e}")
-        terminateTest()
-        
     print("Test finished. Terminating service")
     terminateService()
     
