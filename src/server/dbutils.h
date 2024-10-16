@@ -22,7 +22,7 @@ namespace key_value_store {
     class DatabaseUtils {
         public:
             DatabaseUtils(const char *db_name) {
-                file_name = db_name;
+                file_name = std::string(db_name);
                 is_db_open = false;
                 open();
             }
@@ -37,8 +37,8 @@ namespace key_value_store {
 
             void open() {
                 if (!is_db_open) {
-                    std::cout << "Opening connection to db\n";
-                    int retval = sqlite3_open(file_name, &kv_persist_store); 
+                    std::cout << "Opening connection to db: " << file_name << "\n";
+                    int retval = sqlite3_open(file_name.c_str(), &kv_persist_store); 
                     is_db_open = (retval == SQLITE_OK);
 		            std::cout << "DB creation process is_db_open: " << is_db_open << " retval: " << retval << "\n";
                     if (!is_db_open) {
@@ -65,7 +65,7 @@ namespace key_value_store {
 
         private:
             sqlite3 *kv_persist_store;
-            const char *file_name;
+            std::string file_name;
             bool is_db_open = false;
 
             int create_table() {

@@ -74,6 +74,10 @@ namespace key_value_store
             executor = std::thread(&Worker::run, this);
         }
 
+        bool is_running() {
+            return should_terminate.load();
+        }
+
         void post(const std::function<void()> &func) {
             {
                 std::unique_lock<std::mutex> lock(queue_mutex);

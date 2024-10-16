@@ -291,6 +291,7 @@ namespace key_value_store {
         commit_thread.pause();
         put_thread.pause();
         get_thread.pause();
+        resp_thread.pause();
         
         if (is_tail.load()) {
             // TODO(): Close connection to DB
@@ -348,9 +349,7 @@ namespace key_value_store {
                 break;
             }
             auto req = req_opt.value();
-            COUT << "Committing update for key: " << req.key << " into db\n";
             auto old_value = db_utils->put_value(req.key.c_str(), req.value.c_str());
-            COUT << "Committed " << req.key << " into the db\n";
             if (!is_head.load()) {
                 ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, req));
             }
@@ -415,6 +414,8 @@ namespace key_value_store {
     }
 
     void kv_storeImpl2::serveRequest(Request &req) {
+        assert(is_tail.load());
+
         std::string client_addr = req.addr;
         COUT << "client_addr: " << client_addr << std::endl;
         client_stub = KVResponse::NewStub(grpc::CreateChannel(client_addr, grpc::InsecureChannelCredentials()));
@@ -428,6 +429,7 @@ namespace key_value_store {
             // auto part_mgr = PartitionManager::get_instance();
             // auto partition = part_mgr->get_partition(req.key);
             // auto value = partition->get(req.key);
+            COUT << req.key << "\n";
             auto value = db_utils->get_value(req.key.c_str());
             _req.set_value(value);
             if (value == "") {

@@ -106,22 +106,26 @@ client::get(std::string key, std::string &value) {
     auto deadline = std::chrono::system_clock::now() + std::chrono::seconds(timeout);
     context.set_deadline(deadline);
     
-    std::unique_ptr<kv_store::Stub>& stub_ = getStub(key);
-    Status status = stub_->get(&context, request, &response);
-    int req_retry = req_retry_limit;
+    // std::unique_ptr<kv_store::Stub>& stub_ = getStub(key);
+    // Status status = stub_->get(&context, request, &response);
+    int num_retry = 0;
 
-    while (!status.ok() && (req_retry>0)) {
-        // Send the request to a another server because previous rpc failed
-        req_retry--;
-        std::unique_ptr<kv_store::Stub>& stub_ = getStub(key, true);
-        status = stub_->get(&context, request, &response);
-    }
+    while (num_retry < req_retry_limit) {
+        std::cout << "REtry: " << num_retry << "\n";
+        // Submit query
+        std::unique_ptr<kv_store::Stub>& stub_ = getStub(key, num_retry);
+        num_retry++;
+        if (!stub_) {
+            std::cout << "nullptr\n";
+        }
+        auto status = stub_->get(&context, request, &response);
+        if (!status.ok()) continue;
 
-    if (status.ok()) {
-        // TODO: resp_retry_limit
-        std::cout << "waiting for server to respond: " << std::endl;
-        while(!(rcvd_resp.load())) {
-            //std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        // Wait for response
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        if (!rcvd_resp.load()) {
+            // Resubmit the query
+            continue;
         }
         rcvd_resp.store(false);
         std::cout << "response server passed the value to client: " << this->value << std::endl;
@@ -129,8 +133,28 @@ client::get(std::string key, std::string &value) {
         return this->status;
     }
 
+    // while (!status.ok() && (req_retry>0)) {
+    //     // Send the request to a another server because previous rpc failed
+    //     req_retry--;
+    //     std::unique_ptr<kv_store::Stub>& stub_ = getStub(key, true);
+    //     status = stub_->get(&context, request, &response);
+    // }
+
+    // if (status.ok()) {
+    //     // TODO: resp_retry_limit
+    //     std::cout << "waiting for server to respond: " << std::endl;
+    //     while(!(rcvd_resp.load())) {
+    //         //std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    //     }
+    //     rcvd_resp.store(false);
+    //     std::cout << "response server passed the value to client: " << this->value << std::endl;
+    //     value = this->value;
+    //     return this->status;
+    // }
+
     // We will reach here if req_retry_limit was reached
-    std::cerr << __FILE__ << "[" << __LINE__ << "]" << status.error_message() << std::endl;
+    // std::cerr << __FILE__ << "[" << __LINE__ << "]" << status.error_message() << std::endl;
+    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Retries exhausted" << std::endl;
     return -1;
         
 }
