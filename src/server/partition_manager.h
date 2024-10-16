@@ -44,7 +44,7 @@ namespace key_value_store {
 
 	void create_partitions_internal() {
             for (int i=0; i<NUM_PARTITIONS; i++) {
-                std::string db_name = db_path + DB_NAME_PREFIX + std::to_string(i) + DB_NAME_SUFFIX;
+                std::string db_name = db_path + "_" + DB_NAME_PREFIX + std::to_string(i) + DB_NAME_SUFFIX;
                 partitions.emplace_back(std::move(std::make_unique<Partition>(db_name)));
             }	
 	}

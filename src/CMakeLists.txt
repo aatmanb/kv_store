@@ -42,6 +42,7 @@ add_subdirectory(client)
 add_subdirectory(server)
 add_subdirectory(utils)
 add_subdirectory(proto)
+add_subdirectory(master)
 
 
 # Copyright 2018 gRPC authors.

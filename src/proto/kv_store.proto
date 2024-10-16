@@ -36,19 +36,91 @@ message fwdPutReq {
     putReq req = 1;
 }
 
+message notifyFailureReq {
+    string failedNode = 1;
+}
+
+message notifyRestartReq {
+    string node = 1;
+}
+
+message notifyPredFailureReq {
+    string newPred = 1;
+    bool wasHead = 2;
+}
+
+message notifySuccessorFailureReq {
+    string newSuccessor = 1;
+    bool wasTail = 2;
+}
+
+message addTailNodeReq {
+    string newTail = 1;
+}
+
+message dbEntry {
+    string key = 1;
+    string value = 2;
+}
+
+message dbPath {
+    string path = 1;
+}
+
+message notifyRestartResponse {
+    string db_path = 1;
+    string pred_addr = 2;
+    string head_addr = 3;
+}
+
+message failCommand {
+    bool clean = 1;
+}
+
+message headFailureNotification {
+    string new_head = 1;
+}
+
+message tailFailureNotification {
+    string new_tail = 1;
+}
+
 service kv_store {
 	// Client facing RPCs
     rpc get (getReq) returns (reqStatus) {};
 	rpc put (putReq) returns (reqStatus) {};
     rpc ping (empty) returns (empty) {};
+    rpc fail (failCommand) returns (empty) {};
     
     // Used by the service internally
     rpc fwdGet (fwdGetReq) returns (empty) {};
     rpc fwdPut (fwdPutReq) returns (empty) {};
     rpc commit (fwdPutReq) returns (empty) {};
     rpc ack (putAck) returns (empty) {};
+
+    // Used by the master node
+    rpc heartBeat(empty) returns (empty) {};
+
+    // Used for reconfiguration
+    rpc notifyHeadFailure (headFailureNotification) returns (empty) {};
+
+    rpc notifyTailFailure (tailFailureNotification) returns (empty) {};
+
+    rpc notifyPredFailure (notifyPredFailureReq) returns (empty) {};
+
+    rpc notifySuccessorFailure (notifySuccessorFailureReq) returns (empty) {};
+
+    rpc addTailNode (addTailNodeReq) returns (empty) {};
+
+    // rpc populateDB (empty) returns (dbPath) {};
 }
 
+service master {
+    // For clean failures
+    rpc notifyFailure (notifyFailureReq) returns (empty) {};
+
+    rpc notifyRestart (notifyRestartReq) returns (notifyRestartResponse) {};
+}
 
 
 message getResp {

@@ -1,6 +1,7 @@
 add_executable(server 
                 main.cpp
-                server.cpp
+                new_server.cpp
+                new_server.h
                 data.cpp
                 dbutils.h
                 singleton.h
