@@ -76,6 +76,7 @@ namespace key_value_store {
         grpc::Status fwdPut(grpc::ServerContext *context, const fwdPutReq* request, empty *response) override;
         grpc::Status commit(grpc::ServerContext *context, const fwdPutReq* request, empty *response) override;
         grpc::Status ack(grpc::ServerContext *context, const putAck* request, empty *response) override;
+        grpc::Status heartBeat(grpc::ServerContext *context, const empty* request, empty *response) override;
 
         // Reconfiguration RPCs
         grpc::Status notifyPredFailure(grpc::ServerContext* context, 

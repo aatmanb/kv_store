@@ -119,7 +119,7 @@ namespace key_value_store {
         if (is_tail.load()) {
             resp_thread.post(std::bind(&kv_storeImpl2::serveRequest, this, req));
         } else {
-	        COUT << "forwarding to tail" << std::endl;
+	        COUT << "forwarding to tail: " << tail_addr << std::endl;
             ClientContext _context;
             fwdGetReq _req = req.rpc_fwdGetReq();
             empty _resp;
@@ -128,7 +128,7 @@ namespace key_value_store {
     }
 
     grpc::Status kv_storeImpl2::put(grpc::ServerContext* context, const putReq* request, reqStatus* response) {	
-	    COUT << "id: " << id << " PUT CALLED!!\n";
+	    COUT << addr << ": PUT CALLED!!\n";
         Request req = Request(*request);
 
         try {
@@ -161,6 +161,7 @@ namespace key_value_store {
             commit_thread.post(std::bind(&kv_storeImpl2::commit_process, this, req));
         }
         else {
+            COUT << "Fowarding put to head: " << head_addr << "\n";
             // TODO
 	        // Acknowledge that we received the PUT request
 	        // TODO: response->set_status(KV_PUT_RECEIVED);
@@ -189,7 +190,7 @@ namespace key_value_store {
     }
 
     grpc::Status kv_storeImpl2::fwdPut(ServerContext* context, const fwdPutReq* request, empty* response) {
-	    COUT << "id: " << id << " received fwdPutReq\n";
+	    COUT << addr << " received fwdPutReq\n";
         assert(is_head.load());
 	    Request req = Request(*request);
         commit_thread.post(std::bind(&kv_storeImpl2::commit_process, this, req));
@@ -197,7 +198,7 @@ namespace key_value_store {
     }
 
     grpc::Status kv_storeImpl2::commit(ServerContext* context, const fwdPutReq* request, empty* response) {
-	    COUT << "id: " << id << " received commit\n";
+	    COUT << addr << " received commit\n";
         assert(!is_head.load());
         Request req = Request(*request);
         commit_thread.post(std::bind(&kv_storeImpl2::commit_process, this, req));
@@ -205,7 +206,7 @@ namespace key_value_store {
     }
     
     grpc::Status kv_storeImpl2::ack(ServerContext* context, const putAck* request, empty* response) {
-	    COUT << "id: " << id << " received ack\n";
+	    COUT << addr << " received ack\n";
         assert(!is_tail.load());
         ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, Request(*request)));
         return Status::OK;
@@ -245,7 +246,8 @@ namespace key_value_store {
         ack_thread.pause();
         commit_thread.pause();
         if (was_tail) {
-            COUT << "Processing tail failure at predecessor\n";
+            get_thread.pause();
+            COUT << "Processing tail failure at successor\n";
 
             // Modify stubs
             next_stub.reset();
@@ -259,6 +261,7 @@ namespace key_value_store {
             // Tail should hold connection to database
             db_utils->open();
             commit_sent_updates();
+            get_thread.start();
             resp_thread.start();
         } else {
             // Modify address and stub for new successor
@@ -310,7 +313,7 @@ namespace key_value_store {
         put_thread.start();
         get_thread.start();
 
-        COUT << "Reconfiguration is successful\n";
+        COUT << "Reconfiguration is successful. New tail is: " << tail_addr << "\n";
 
         return grpc::Status::OK;
     }
@@ -341,16 +344,14 @@ namespace key_value_store {
     void kv_storeImpl2::commit_sent_updates() {
         while (true) {
             auto req_opt = sent_queue.front();
-            if (req_opt == std::nullopt) {
+            if (!req_opt.has_value()) {
                 break;
             }
             auto req = req_opt.value();
+            COUT << "Committing update for key: " << req.key << " into db\n";
+            auto old_value = db_utils->put_value(req.key.c_str(), req.value.c_str());
+            COUT << "Committed " << req.key << " into the db\n";
             if (!is_head.load()) {
-                // auto part_mgr = PartitionManager::get_instance();
-                // auto partition = part_mgr->get_partition(req.key);
-                // partition->put(req.key, req.value);
-                auto old_value = db_utils->put_value(req.key.c_str(), req.value.c_str());
-
                 ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, req));
             }
         }
@@ -360,7 +361,7 @@ namespace key_value_store {
         ThreadSafeQueue<Request> tmp_queue;
         while (true) {
             auto val = sent_queue.tryDequeue();
-            if (val == std::nullopt) {
+            if (!val.has_value()) {
                 break;
             }
             ClientContext _context;
@@ -389,7 +390,6 @@ namespace key_value_store {
             next_stub->commit(&_context, _req, &_resp);
         }
         else {
-            COUT << "tail receive commit from " << req.addr << std::endl;
             resp_thread.post(std::bind(&kv_storeImpl2::serveRequest, this, req));
         }
     }
@@ -464,5 +464,10 @@ namespace key_value_store {
             std::cerr << "Invalid request type" << std::endl;
             std::exit(1);
         }
+    }
+
+    grpc::Status kv_storeImpl2::heartBeat(grpc::ServerContext *context, 
+            const empty* request, empty *response) {
+        return grpc::Status::OK;
     }
 }

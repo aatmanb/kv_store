@@ -38,7 +38,9 @@ namespace key_value_store {
         std::string db_dir;
     
     public:
-        ReplicationManager() {}
+        ReplicationManager() {
+            start_health_check();
+        }
 
         virtual ~ReplicationManager();
 
