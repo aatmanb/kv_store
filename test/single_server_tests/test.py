@@ -9,7 +9,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--id', type=int, default=1, help='Client id')
-    parser.add_argument('--target', type=str, default="localhost:9876", help='Server port for connection')
+    parser.add_argument('--config-file', type=str, default="", help='chain configuration file')
     parser.add_argument('--real-fname', type=str, default='real')
     parser.add_argument('--fake-fname', type=str, default='fake')
     parser.add_argument('--test_type', type=int, default=1, help='Type of test: 1 (for correctness), 2 (for crash consistency), 3 (for performance)')
@@ -22,7 +22,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     test_type = args.test_type
-    target_str = args.target
+    config_file = args.config_file
 
     crash_consistency_test = (test_type == 2)
     performance_test = (test_type == 3)
@@ -31,11 +31,11 @@ if __name__ == "__main__":
     overwritten_keys = {}
 
     # Populate DB
-    db_keys, overwritten_keys = crash_consistency.populateDB(target_str, args.real_fname, crash_consistency_test)
+    db_keys, overwritten_keys = crash_consistency.populateDB(config_file, args.real_fname, crash_consistency_test)
 
     if performance_test:
-        performance.performanceTest(target_str, 10, db_keys)
+        performance.performanceTest(config_file, 10, db_keys)
     elif crash_consistency_test:
-        correctness.correctnessTest(target_str, args.fake_fname, db_keys, overwritten_keys, crash_consistency_test)
+        correctness.correctnessTest(config_file, args.fake_fname, db_keys, overwritten_keys, crash_consistency_test)
     else:
-        correctness.correctnessTest(target_str, args.fake_fname, db_keys, overwritten_keys) 
+        correctness.correctnessTest(config_file, args.fake_fname, db_keys, overwritten_keys) 
