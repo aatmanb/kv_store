@@ -1,30 +1,38 @@
 #include "replication.h"
 #include "server/dbutils.h"
 #include "thread"
+
 #include <chrono>
 
 #define COUT std::cout << __FILE__ << ":" << __LINE__ << " " 
 
 namespace key_value_store {
+    void print_chain(std::vector<std::string> &chain) {
+        if (!chain.size()) return;
+        COUT << "(Head) " << chain[0];
+        for (int i=1; i<chain.size(); i++) {
+            std::cout << " -> " << chain[i];
+        }
+        std::cout << "  (Tail)\n";        
+    }
+
     void ReplicationManager::add_node(const std::string &server, notifyRestartResponse *resp) {
-        std::lock_guard<std::shared_mutex> lock {mtx};
+        std::unique_lock<std::shared_mutex> lock {mtx};
 
         int volume = server_to_chain_map[server];
         COUT << "Adding " << server << " to volume: " << volume << "\n";
         auto& servers = active_servers[volume];
         if (servers.size()) {    
             // Notify the other nodes of node addition
-            auto pred_addr = servers[servers.size() - 1];
             for (const auto& node: servers) {
-                COUT << "Notifying server " << node << " about tail addition...\n";
                 empty resp2;
                 addTailNodeReq add_tail_req;
                 add_tail_req.set_newtail(server);
                 grpc::ClientContext ctx;
-                node_to_conn_map[pred_addr]->addTailNode(&ctx, add_tail_req, &resp2);
-                COUT << "Server " << node << " notified\n";
+                node_to_conn_map[node]->addTailNode(&ctx, add_tail_req, &resp2);
             }
 
+            auto pred_addr = servers[servers.size() - 1];
             resp->set_head_addr(servers[0]);
             resp->set_pred_addr(pred_addr);
         } else {
@@ -32,15 +40,17 @@ namespace key_value_store {
             resp->set_pred_addr("");
         }
         
+        COUT << "Successfully added " << server << " to the chain\n";
         node_to_conn_map[server] = std::move(kv_store::NewStub(grpc::CreateChannel(server, grpc::InsecureChannelCredentials())));
-        servers.push_back(server);
+        active_servers[volume].push_back(server);
             
         resp->set_db_path(db_dir + get_db_name_for_volume(volume));
+        print_chain(active_servers[volume]);
     }
 
     void ReplicationManager::remove_node(const std::string &server) {
         COUT << "Handling failure of server: " << server << "\n";
-        std::lock_guard<std::shared_mutex> lock {mtx};
+        std::unique_lock<std::shared_mutex> lock {mtx};
         int volume = server_to_chain_map[server];
         auto& servers = active_servers[volume];
         int idx = std::find(servers.begin(), servers.end(), server) - servers.begin();
@@ -81,7 +91,7 @@ namespace key_value_store {
                 grpc::ClientContext ctx;
                 node_to_conn_map[servers[i]]->notifyTailFailure(&ctx, req1, &empty_response);
             }
-        } else {
+        } else if (idx) {
             // Intermediate node failure
             auto new_tail = servers[idx-1];
             grpc::ClientContext ctx;
@@ -94,9 +104,12 @@ namespace key_value_store {
         
         servers.erase(servers.begin() + idx);
         node_to_conn_map.erase(server);
+        print_chain(active_servers[volume]);
+        COUT << "Reconfiguration done\n";
     }
 
     void ReplicationManager::check_health() {
+        COUT << "Launched thread for checking health of servers\n";
         while (run_health_check) {
             std::vector<std::string> servers_to_remove;
             {
