@@ -24,6 +24,18 @@ target_link_libraries(739kv
                         client
                         ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF})
 
+# Add pybind shared library
+include_directories("${CMAKE_SOURCE_DIR}/extern/pybind11/include")
+include_directories("/usr/include/python3.10")
+
+add_library(kv739_py SHARED wrapper.cpp)
+target_link_libraries(kv739_py PRIVATE 739kv)
+add_dependencies(kv739_py 739kv)
+
+set_target_properties(kv739_py PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+)
+
 ## Add subdirectories
 add_subdirectory(client)
 add_subdirectory(server)
@@ -85,7 +97,6 @@ add_subdirectory(proto)
 #include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 ## Include tsl 
 #include_directories("${PROJECT_SOURCE_DIR}/../external")
-#include_directories("${PROJECT_SOURCE_DIR}/../extern/pybind11/include")
 #include_directories("/usr/include/python3.10")
 ## message(STATUS "Project root directory: ${PROJECT_SOURCE_DIR}")
 #
@@ -132,9 +143,6 @@ add_subdirectory(proto)
 #target_link_libraries(test 739kv)
 #add_dependencies(test 739kv)
 #
-#add_library(kv739_py SHARED wrapper.cpp)
-#target_link_libraries(kv739_py PRIVATE 739kv)
-#add_dependencies(kv739_py 739kv)
 ## message(STATUS "${PROJECT_SOURCE_DIR}/../extern/pybind11/tools")
 ## set(pybind11_DIR "${PROJECT_SOURCE_DIR}/../extern/pybind11/tools")
 ## set(PYBIND11_FINDPYTHON ON)

@@ -34,11 +34,12 @@ if [ $# -lt 2 ]; then
   exit 1
 fi
 
-ROOT_DIR=$(pwd)
+BASE_DIR=$(pwd)
+ROOT_DIR=$BASE_DIR/../..
 SRC_DIR=$ROOT_DIR/src
-TEST_DIR=$ROOT_DIR/test
+TEST_DIR=$BASE_DIR
 BIN_DIR="$ROOT_DIR/bin"
-DB_DIR="$ROOT_DIR/db"
+DB_DIR="$BASE_DIR/db"
 
 NUM_CLIENTS=$1
 OUTPUT_DIR=$2
@@ -46,13 +47,13 @@ TEST_TYPE=$3
 
 if [[ "$4" == "--gen-test-data" ]]; then
     echo "Generating test data"
-    cd $TEST_DIR
+    cd $TEST_DIR/..
     DATA_DIR="$(pwd)/data"
     if [ ! -d "$DATA_DIR" ]; then
     	echo "Creating data directory $DATA_DIR"
     	mkdir -p "$DATA_DIR"
     fi
-    python3 generator.py --num-clients=$NUM_CLIENTS
+    python3 generator.py --num-clients=$NUM_CLIENTS --base_dir=$TEST_DIR
     cd $ROOT_DIR
     echo "Generation complete"
 fi
@@ -99,12 +100,13 @@ do
         args="$args --test_type=3"
     else
         args="$args --test_type=1"
-        args="$args --test_type=1"
     fi
     echo "Starting client $i"
     echo "$args"
-    echo $BIN_DIR
-    $BIN_DIR/test $args >| "$OUTPUT_DIR/client$i.log" 2>&1 &
+    echo $TEST_DIR
+    cd $TEST_DIR
+    echo $OUTPUT_DIR
+    python3 test.py $args >| $OUTPUT_DIR/client$i.log 2>&1 &
     client_pids+=($!)
 done
 
