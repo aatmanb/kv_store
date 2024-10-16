@@ -15,6 +15,10 @@
 #define DB_UPDATE_SUCCESS 1
 
 namespace key_value_store {
+    inline std::string get_db_name_for_volume(int volume) {
+        return std::string("db_volume_") + std::to_string(volume);
+    }
+
     class DatabaseUtils {
         public:
             DatabaseUtils(const char *db_name) {
