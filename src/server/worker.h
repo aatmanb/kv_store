@@ -33,13 +33,37 @@ namespace key_value_store
 
         std::thread executor;
 
+        std::mutex queue_mutex;                  // Prevents data races to the job queue
+        
+        std::condition_variable mutex_condition; // Allows threads to wait on new jobs or termination
+
+        void run() {
+            while (true) {
+                std::function<void()> job;
+                {
+                    std::unique_lock<std::mutex> lock(queue_mutex);
+                    mutex_condition.wait(lock, [this] {
+                        return !task_queue.isEmpty() || should_terminate.load();
+                    });
+                    if (should_terminate.load()) {
+                        return;
+                    }
+                    job = task_queue.dequeue();
+                }
+                job();
+            }
+        }
     public:
         Worker() {
             should_terminate.store(false);
         }
 
         void pause() {
-            should_terminate.store(true);
+            {
+                std::unique_lock<std::mutex> lock(queue_mutex);
+                should_terminate.store(true);
+            }
+            mutex_condition.notify_one();
             if (executor.joinable()) {
                 executor.join();
             }
@@ -50,15 +74,12 @@ namespace key_value_store
             executor = std::thread(&Worker::run, this);
         }
 
-        void run() {
-            while (!should_terminate.load()) {
-                const auto& job = task_queue.dequeue();
-                job();
-            }
-        }
-
         void post(const std::function<void()> &func) {
-            task_queue.enqueue(func);
+            {
+                std::unique_lock<std::mutex> lock(queue_mutex);
+                task_queue.enqueue(func);
+            }
+            mutex_condition.notify_one();
         }
     };
 } // namespace key_value_store

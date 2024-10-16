@@ -2,6 +2,7 @@
 
 #include "server/singleton.h"
 #include "kv_store.grpc.pb.h"
+#include "utils/utils.h"
 
 #include <vector>
 #include <atomic>
@@ -28,16 +29,20 @@ namespace key_value_store {
 
         std::unordered_map<std::string, std::unique_ptr<kv_store::Stub>> node_to_conn_map;
 
-        static constexpr int NUM_VOLUMES = 20;
+        int num_volumes;
 
         static constexpr int health_check_interval = 5;
 
         void check_health();
+
+        std::string db_dir;
     
     public:
-        ReplicationManager() {
-            active_servers.resize(NUM_VOLUMES);
-        }
+        ReplicationManager() {}
+
+        virtual ~ReplicationManager();
+
+        void configure_cluster(std::string &config_path);
 
         void add_node(const std::string &server, notifyRestartResponse* resp);
 
@@ -45,6 +50,6 @@ namespace key_value_store {
 
         void start_health_check();
 
-        ~ReplicationManager();
+        void set_db_dir(std::string &db_dir);
     };
 }

@@ -18,6 +18,8 @@ using grpc::ClientContext;
 using grpc::ServerContext;
 using grpc::Status;
 
+#define COUT std::cout << __FILE__ << ":" << __LINE__ << " " 
+
 namespace key_value_store {
     void runServer(std::string &master_addr, std::string &local_addr) {
         kv_storeImpl2 service(master_addr, local_addr);
@@ -32,39 +34,33 @@ namespace key_value_store {
         builder.RegisterService(&service);
         // Finally assemble the server.
         std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
-        std::cout << "Server listening on " << local_addr << std::endl;
+        COUT << "Server listening on " << local_addr << std::endl;
+        service.start();
         
         // Wait for the server to shutdown. Note that some other thread must be
         // responsible for shutting down the server for this call to ever return.
         server->Wait();
     }
 
-    kv_storeImpl2::kv_storeImpl2(std::string &master_addr, std::string &addr):
-            manager_addr(master_addr),
-            addr(addr) {
-        is_tail.store(true);
+    void kv_storeImpl2::start() {
+        COUT << "Contacting master at: " << manager_addr << "\n";
 
-        if (!manager_addr.empty()) {
-            manager_stub = master::NewStub(grpc::CreateChannel(manager_addr, grpc::InsecureChannelCredentials()));
-        } else {
-            // Manager address is empty
-            throw new std::runtime_error("No manager address provided");
-        }
         // Notify manager that this server has restarted
         grpc::ClientContext ctx;
         notifyRestartReq req;
         req.set_node(addr);
         notifyRestartResponse response;
+        COUT << "Notifying manager about restart...\n";
         auto status = manager_stub->notifyRestart(&ctx, req, &response);
+        COUT << "Manager has been notified\n";
 
         if (!status.ok()) {
             throw new std::runtime_error(status.error_message());
         }
+
         db_name = response.db_path().c_str();
-        
-        auto part_mgr = PartitionManager::get_instance();
-        part_mgr->set_db_path_directory(db_name);
-        part_mgr->create_partitions();
+        db_utils = std::move(std::make_unique<DatabaseUtils>(db_name));
+        db_utils->open();
 
         prev_addr = response.pred_addr();
         head_addr = response.head_addr();
@@ -85,6 +81,19 @@ namespace key_value_store {
         resp_thread.start();
     }
 
+    kv_storeImpl2::kv_storeImpl2(std::string &master_addr, std::string &addr):
+            manager_addr(master_addr),
+            addr(addr) {
+        is_tail.store(true);
+
+        if (!manager_addr.empty()) {
+            manager_stub = master::NewStub(grpc::CreateChannel(manager_addr, grpc::InsecureChannelCredentials()));
+        } else {
+            // Manager address is empty
+            throw new std::runtime_error("No manager address provided");
+        }
+    }
+
     kv_storeImpl2::~kv_storeImpl2() {
         ack_thread.pause();
         commit_thread.pause();
@@ -94,7 +103,7 @@ namespace key_value_store {
     }
 
     grpc::Status kv_storeImpl2::get(ServerContext* context, const getReq* request, reqStatus* response) {
-        std::cout << "id: " << id <<  " GET CALLED!!" << std::endl;
+        COUT << "id: " << id <<  " GET CALLED!!" << std::endl;
         Request req = Request(*request);
         try {
             get_thread.post(std::bind(&kv_storeImpl2::get_process, this, req));
@@ -110,7 +119,7 @@ namespace key_value_store {
         if (is_tail.load()) {
             resp_thread.post(std::bind(&kv_storeImpl2::serveRequest, this, req));
         } else {
-	        std::cout << "forwarding to tail" << std::endl;
+	        COUT << "forwarding to tail" << std::endl;
             ClientContext _context;
             fwdGetReq _req = req.rpc_fwdGetReq();
             empty _resp;
@@ -119,7 +128,7 @@ namespace key_value_store {
     }
 
     grpc::Status kv_storeImpl2::put(grpc::ServerContext* context, const putReq* request, reqStatus* response) {	
-	    std::cout << "id: " << id << " PUT CALLED!!\n";
+	    COUT << "id: " << id << " PUT CALLED!!\n";
         Request req = Request(*request);
 
         try {
@@ -140,6 +149,7 @@ namespace key_value_store {
             req.set_failednode(addr);
             empty response;
             manager_stub->notifyFailure(&ctx, req, &response);
+            db_utils->close();
         }
         exit(-1);
         return grpc::Status::OK;
@@ -147,7 +157,7 @@ namespace key_value_store {
 
     void kv_storeImpl2::put_process(Request req) {
 	    if (is_head.load()) {
-	        std::cout << "HEAD: " << is_head.load() << ", received put() request\n";
+	        COUT << "HEAD: " << is_head.load() << ", received put() request\n";
             commit_thread.post(std::bind(&kv_storeImpl2::commit_process, this, req));
         }
         else {
@@ -170,16 +180,16 @@ namespace key_value_store {
     }
     
     grpc::Status kv_storeImpl2::fwdGet(ServerContext* context, const fwdGetReq* request, empty* response) {
-        std::cout << "id: " << id <<  " received fwdGetReq" << std::endl;
+        COUT << "id: " << id <<  " received fwdGetReq" << std::endl;
         // TODO(): This assertion could fail during reconfiguration
         assert(is_tail.load()); // Only tail shoudl receive forwarded getReq
-        std::cout << "pushing to pending Q" << std::endl;
+        COUT << "pushing to pending Q" << std::endl;
         resp_thread.post(std::bind(&kv_storeImpl2::serveRequest, this, Request(*request)));
         return Status::OK;
     }
 
     grpc::Status kv_storeImpl2::fwdPut(ServerContext* context, const fwdPutReq* request, empty* response) {
-	    std::cout << "id: " << id << " received fwdPutReq\n";
+	    COUT << "id: " << id << " received fwdPutReq\n";
         assert(is_head.load());
 	    Request req = Request(*request);
         commit_thread.post(std::bind(&kv_storeImpl2::commit_process, this, req));
@@ -187,7 +197,7 @@ namespace key_value_store {
     }
 
     grpc::Status kv_storeImpl2::commit(ServerContext* context, const fwdPutReq* request, empty* response) {
-	    std::cout << "id: " << id << " received commit\n";
+	    COUT << "id: " << id << " received commit\n";
         assert(!is_head.load());
         Request req = Request(*request);
         commit_thread.post(std::bind(&kv_storeImpl2::commit_process, this, req));
@@ -195,7 +205,7 @@ namespace key_value_store {
     }
     
     grpc::Status kv_storeImpl2::ack(ServerContext* context, const putAck* request, empty* response) {
-	    std::cout << "id: " << id << " received ack\n";
+	    COUT << "id: " << id << " received ack\n";
         assert(!is_tail.load());
         ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, Request(*request)));
         return Status::OK;
@@ -218,7 +228,7 @@ namespace key_value_store {
             head_addr.clear();
 
             is_head.store(true);
-            std::cout << "Successfully changed head to current node\n";
+            COUT << "Successfully changed head to current node\n";
         } else {
             prev_addr = request->newpred();
             prev_stub = kv_store::NewStub(grpc::CreateChannel(prev_addr, grpc::InsecureChannelCredentials()));
@@ -235,7 +245,7 @@ namespace key_value_store {
         ack_thread.pause();
         commit_thread.pause();
         if (was_tail) {
-            std::cout << "Processing tail failure at predecessor\n";
+            COUT << "Processing tail failure at predecessor\n";
 
             // Modify stubs
             next_stub.reset();
@@ -246,6 +256,8 @@ namespace key_value_store {
             tail_addr.clear();
 
             is_tail.store(true);
+            // Tail should hold connection to database
+            db_utils->open();
             commit_sent_updates();
             resp_thread.start();
         } else {
@@ -271,6 +283,7 @@ namespace key_value_store {
 
     grpc::Status kv_storeImpl2::addTailNode(grpc::ServerContext *context, const addTailNodeReq *req, 
                 empty* response) {
+        COUT << "Received request to add tail node\n";
         // Pause threads
         commit_thread.pause();
         put_thread.pause();
@@ -288,22 +301,29 @@ namespace key_value_store {
         tail_stub.reset();
         tail_addr = req->newtail();
         tail_stub = kv_store::NewStub(grpc::CreateChannel(tail_addr, grpc::InsecureChannelCredentials()));
+
+        // Close connection to database so that new tail can open it (SQLite allows only one process to connect to a given db)
+        db_utils->close();
         
         // Resume threads
         commit_thread.start();
         put_thread.start();
         get_thread.start();
 
+        COUT << "Reconfiguration is successful\n";
+
         return grpc::Status::OK;
     }
 
     grpc::Status kv_storeImpl2::notifyHeadFailure(grpc::ServerContext* context,
                 const headFailureNotification* request, empty *response) {
+        COUT << "Received notification about head failure\n";
         put_thread.pause();
         head_addr = request->new_head();
         head_stub.reset();
         head_stub = kv_store::NewStub(grpc::CreateChannel(head_addr, grpc::InsecureChannelCredentials()));
         put_thread.start();
+        COUT << "Reconfiguration is successful\n";
         return grpc::Status::OK;
     }
 
@@ -314,6 +334,7 @@ namespace key_value_store {
         tail_stub.reset();
         tail_stub = kv_store::NewStub(grpc::CreateChannel(tail_addr, grpc::InsecureChannelCredentials()));
         get_thread.start();
+        COUT << "Reconfiguration is successful\n";
         return grpc::Status::OK;
     }
 
@@ -325,9 +346,10 @@ namespace key_value_store {
             }
             auto req = req_opt.value();
             if (!is_head.load()) {
-                auto part_mgr = PartitionManager::get_instance();
-                auto partition = part_mgr->get_partition(req.key);
-                partition->put(req.key, req.value);
+                // auto part_mgr = PartitionManager::get_instance();
+                // auto partition = part_mgr->get_partition(req.key);
+                // partition->put(req.key, req.value);
+                auto old_value = db_utils->put_value(req.key.c_str(), req.value.c_str());
 
                 ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, req));
             }
@@ -367,7 +389,7 @@ namespace key_value_store {
             next_stub->commit(&_context, _req, &_resp);
         }
         else {
-            std::cout << "tail receive commit from " << req.addr << std::endl;
+            COUT << "tail receive commit from " << req.addr << std::endl;
             resp_thread.post(std::bind(&kv_storeImpl2::serveRequest, this, req));
         }
     }
@@ -388,24 +410,25 @@ namespace key_value_store {
             prev_stub->ack(&_context, _req, &_resp); 
         }
         else {
-            std::cout << "head received ack" << std::endl;
+            COUT << "head received ack" << std::endl;
         }
     }
 
     void kv_storeImpl2::serveRequest(Request &req) {
         std::string client_addr = req.addr;
-        std::cout << "client_addr: " << client_addr << std::endl;
+        COUT << "client_addr: " << client_addr << std::endl;
         client_stub = KVResponse::NewStub(grpc::CreateChannel(client_addr, grpc::InsecureChannelCredentials()));
         ClientContext _context;
         respStatus _resp;
 
         if (req.type == request_t::GET) {
-            std::cout << "Processing client get() request" << std::endl;
+            COUT << "Processing client get() request" << std::endl;
             getResp _req;
 
-            auto part_mgr = PartitionManager::get_instance();
-            auto partition = part_mgr->get_partition(req.key);
-            auto value = partition->get(req.key);
+            // auto part_mgr = PartitionManager::get_instance();
+            // auto partition = part_mgr->get_partition(req.key);
+            // auto value = partition->get(req.key);
+            auto value = db_utils->get_value(req.key.c_str());
             _req.set_value(value);
             if (value == "") {
                 _req.set_status(KV_GET_FAILED);
@@ -416,13 +439,15 @@ namespace key_value_store {
             // Send response to client
             Status status = client_stub->sendGetResp(&_context, _req, &_resp);
             // Send ack to predecessor
-            std::cout << "Sent get response to client" << std::endl;
+            COUT << "Sent get response to client" << std::endl;
         } else if (req.type == request_t::PUT) {
-            std::cout << "Processing client put() request" << std::endl;
+            COUT << "Processing client put() request" << std::endl;
             putResp _req;
-            auto part_mgr = PartitionManager::get_instance();
-            auto partition = part_mgr->get_partition(req.key);
-            auto old_value = partition->put(req.key, req.value);
+            // auto part_mgr = PartitionManager::get_instance();
+            // auto partition = part_mgr->get_partition(req.key);
+            // auto old_value = partition->put(req.key, req.value);
+            auto old_value = db_utils->put_value(req.key.c_str(), req.value.c_str());
+
             _req.set_old_value(old_value);
             if (old_value == "") {
                 _req.set_status(KV_PUT_SUCCESS);
@@ -434,7 +459,7 @@ namespace key_value_store {
             Status status = client_stub->sendPutResp(&_context, _req, &_resp);
             // Send ack to predecessor
             ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, req));
-            std::cout << "Sent put response to client" << std::endl;
+            COUT << "Sent put response to client" << std::endl;
         } else {
             std::cerr << "Invalid request type" << std::endl;
             std::exit(1);

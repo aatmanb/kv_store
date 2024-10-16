@@ -13,6 +13,10 @@ public:
     void addServer(std::string& server);
     std::string getServer();
 
+    inline const std::vector<std::string>& get_servers() const {
+        return servers;
+    }
+
 private:
     // Servers in this partition
     std::vector<std::string> servers;

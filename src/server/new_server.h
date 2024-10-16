@@ -28,10 +28,20 @@ namespace key_value_store {
     public:
         kv_storeImpl2(std::string &master_addr, std::string &addr); 
         ~kv_storeImpl2();
+
+        /**
+         * This function does the following:
+         * - Informs manager about start/restart
+         * - Opens connection to the database
+         * - Launches threads
+         * This is not part of the constructor since the grpc server should launch before we communicate with the manager
+         */
+        void start();
  
     private: 
         uint32_t id;
-	    const char *db_name;
+	const char *db_name;
+        std::unique_ptr<DatabaseUtils> db_utils;
 
         std::atomic<bool> is_tail;
         std::atomic<bool> is_head;
