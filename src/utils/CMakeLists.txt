@@ -1,5 +1,8 @@
 # Add the utils sources
-add_library(utils utils.cc)
+add_library(utils 
+            utils.cc
+            partition_utils.cc
+            )
 
 # Include the directory for headers
 target_include_directories(utils PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

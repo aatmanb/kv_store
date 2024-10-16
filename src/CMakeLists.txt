@@ -7,6 +7,7 @@ add_library(739kv SHARED
 target_include_directories(739kv PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CLIENT_DIR}
+    ${CMAKE_UTILS_DIR}
 )
 
 set_target_properties(739kv PROPERTIES
@@ -21,9 +22,9 @@ target_link_libraries(739kv
                         kv_store_grpc_proto 
                         boost_thread
                         absl::check absl::flags absl::flags_parse absl::log
-                        client
-                        ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF})
-
+                        ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF}
+                        client)
+                        
 ## Add subdirectories
 add_subdirectory(client)
 add_subdirectory(server)

@@ -4,6 +4,11 @@
 #include <cstring>
 #include <stdexcept>
 #include <cstdlib>
+#include <fstream>
+#include <sstream>
+#include <vector>
+
+#include "utils.h"
 
 // Function to convert std::string to modifiable char*
 char* stringToCharArray(const std::string& str) {
@@ -23,4 +28,47 @@ char* stringToCharArray(const std::string& str) {
 std::string charArrayToString(char* charArray) {
     // Create a std::string from the char array
     return std::string(charArray);
+}
+
+std::vector<PartitionConfig> parseConfigFile(const std::string& config_file) {
+    std::vector<PartitionConfig> partitions;
+    std::ifstream file(config_file);
+    int num_partitions;
+    
+    if (!file.is_open()) {
+        std::cerr << "Error: Could not open file " << config_file << std::endl;
+        return partitions;
+    }
+
+    std::string line;
+    if (std::getline(file, line)) {
+        num_partitions = std::stoi(line);
+    }
+
+    for (int i=0; i<num_partitions; i++) {
+        partitions.push_back(PartitionConfig(i));
+    }
+
+    while (std::getline(file, line)) {
+        std::stringstream ss(line);
+        std::string partition_id_str, server_id, port;
+        int partition_id;
+        
+        // Read the partition_id, server_id, and port from the CSV
+        std::getline(ss, partition_id_str, ',');
+        std::getline(ss, server_id, ',');
+        std::getline(ss, port, ',');
+
+        partition_id = std::stoi(partition_id_str);
+
+        partitions[partition_id].addServer(port);
+    }
+
+    file.close();
+
+    for (auto partition: partitions) {
+        partition.init();
+    }
+    
+    return partitions;
 }
