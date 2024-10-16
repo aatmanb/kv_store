@@ -28,8 +28,9 @@ public:
 
     int get(std::string key, std::string &value);
     int put(std::string key, std::string value, std::string &old_value);
+    int kill(std::string server, int clean);
 
-    std::unique_ptr<kv_store::Stub> createStub(const std::string& port);
+    // std::unique_ptr<kv_store::Stub> createStub(const std::string& port);
     std::unique_ptr<kv_store::Stub>& getStub(const std::string& key, bool retry=false);
 
     uint16_t id;

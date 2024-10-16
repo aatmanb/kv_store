@@ -181,11 +181,25 @@ client::put(std::string key, std::string value, std::string &old_value) {
     return -1;
 }
 
-std::unique_ptr<kv_store::Stub>
-client::createStub(const std::string& port) {
-    std::string server_name = "localhost:" + port;
+std::unique_ptr<kv_store::Stub> createStub(int port) {
+    std::string server_name = "localhost:" + std::to_string(port);
     std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(server_name, grpc::InsecureChannelCredentials());
     return kv_store::NewStub(channel);
+}
+
+std::unique_ptr<kv_store::Stub> createStub(const std::string& server_name) {
+    std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(server_name, grpc::InsecureChannelCredentials());
+    return kv_store::NewStub(channel);
+}
+
+int client::kill(std::string server, int clean) {
+    auto server_stub = createStub(server);
+    grpc::ClientContext ctx;
+    failCommand req;
+    req.set_clean(clean);
+    empty response;
+    auto status = server_stub->fail(&ctx, req, &response);
+    return status.ok() ? 0 : -1;
 }
 
 std::unique_ptr<kv_store::Stub>& 
@@ -195,7 +209,7 @@ client::getStub(const std::string& key, bool retry) {
     
     if (retry) {
         PartitionConfig partition = partitions[partition_id];
-        std::unique_ptr<kv_store::Stub> stub_ = createStub(partition.getServer());
+        std::unique_ptr<kv_store::Stub> stub_ = createStub(std::stoi(partition.getServer()));
         stubs[partition_id] = std::move(stub_);
     }
 
