@@ -6,6 +6,7 @@ add_executable(server
                 singleton.h
                 partition_manager.h
                 thread_safe_queue.h
+                thread_safe_hashmap.h
                 request.h
                 )
 

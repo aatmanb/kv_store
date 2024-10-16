@@ -43,6 +43,7 @@ client::client(int timeout, const std::string& config_file) :
     // Spawn two threads
     // thread 0: run the server
     // thread 1: continue with client construction
+    rcvd_resp.store(false);
     resp_server_started.store(false);
     server_thread = std::thread(&client::start_response_server, this, std::ref(resp_server), std::ref(resp_server_addr), std::ref(resp_server_started));
     while (!resp_server_started.load()) {
@@ -154,22 +155,15 @@ client::put(std::string key, std::string value, std::string &old_value) {
     auto deadline = std::chrono::system_clock::now() + std::chrono::seconds(timeout);
     context.set_deadline(deadline);
 
-    //std::unique_ptr<kv_store::Stub>& stub_; // = getStub(key);
-    CustomHash hash;
-    int partition_id = hash(key) % num_partitions;
-    
-    Status status = stubs[partition_id]->put(&context, request, &response);
+    std::unique_ptr<kv_store::Stub>& stub_ = getStub(key);
+    Status status = stub_->put(&context, request, &response);
     int req_retry = req_retry_limit;
 
     while (!status.ok() && (req_retry>0)) {
         // Send the request to a another server because previous rpc failed
         req_retry--;
-        PartitionConfig partition = partitions[partition_id];
-        std::unique_ptr<kv_store::Stub> stub_ = createStub(partition.getServer());
-        stubs[partition_id] = std::move(stub_);
-
         //std::unique_ptr<kv_store::Stub>& stub_ = getStub(key, true);
-        status = stubs[partition_id]->put(&context, request, &response);
+        status = stub_->put(&context, request, &response);
     }
 
     if (status.ok()) {

@@ -276,6 +276,8 @@ namespace key_value_store {
     void kv_storeImpl::commit_process(Request req) {
         // TODO:
         // 1. Commit to own database
+        // Add to ThreadSafeHashMap
+        local_map.insert(req.key, req.value);
         sent_q.enqueue(req);
         if (!tail) {
 	        ClientContext _context;
@@ -323,9 +325,18 @@ namespace key_value_store {
                 std::cout << "client_addr: " << client_addr << std::endl;
                 client_stub = KVResponse::NewStub(grpc::CreateChannel(client_addr, grpc::InsecureChannelCredentials()));
                 ClientContext _context;
+
+                // Call partition manager get to get the value
                 getResp _req;
-                _req.set_value("Get call successful");
-                _req.set_status(KV_GET_SUCCESS);
+	            auto part_mgr = PartitionManager::get_instance();
+                auto partition = part_mgr->get_partition(req.key);
+                auto value = partition->get(req.key);
+                _req.set_value(value);
+                if (value == "") {
+                    _req.set_status(KV_GET_FAILED);
+                } else {
+                    _req.set_status(KV_GET_SUCCESS);
+                }
                 respStatus _resp; 
                 Status status = client_stub->sendGetResp(&_context, _req, &_resp);
                 std::cout << "Sent get response to client" << std::endl;
@@ -339,9 +350,18 @@ namespace key_value_store {
                 std::cout << "value: " << req.value << std::endl;
 	            client_stub = KVResponse::NewStub(grpc::CreateChannel(client_addr, grpc::InsecureChannelCredentials()));
 	            ClientContext _context;
+
+                // Call partition manager put to get the old value
 	            putResp _req;
-	            _req.set_old_value("Put call successful");
-	            _req.set_status(KV_GET_SUCCESS);
+                auto part_mgr = PartitionManager::get_instance();
+                auto partition = part_mgr->get_partition(req.key);
+                auto old_value = partition->put(req.key, req.value);
+                _req.set_old_value(old_value);
+                if (old_value == "") {
+                    _req.set_status(KV_PUT_SUCCESS);
+                } else {
+                    _req.set_status(KV_UPDATE_SUCCESS);
+                }
 	            respStatus _resp; 
 	            Status status = client_stub->sendPutResp(&_context, _req, &_resp);
                 spawnAck(req);
