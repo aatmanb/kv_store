@@ -64,6 +64,14 @@ public:
         return queue.front();                 // Get the front item
     }
 
+    std::optional<T> back() {
+        std::lock_guard<std::mutex> lock(mtx);  // Lock the queue
+        if (queue.empty()) {
+            return std::nullopt;                // Return empty if queue is empty
+        }
+        return queue.back();                 // Get the front item
+    }
+
     // Check if the queue is empty
     bool isEmpty() {
         std::lock_guard<std::mutex> lock(mtx);  // Lock the queue

@@ -106,7 +106,7 @@ namespace key_value_store {
         /**
          * Resends lost updates in the case of failure of an intermediate node
          */
-        void process_lost_updates();
+        void process_lost_updates(const putReq& last_req);
         /**
          * Commits updates to db from sent queue after failure of tail
          */

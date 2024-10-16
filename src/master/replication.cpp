@@ -75,31 +75,33 @@ namespace key_value_store {
                 node_to_conn_map[servers[i]]->notifyHeadFailure(&ctx, req1, &empty_response);
             }
         } else if (idx == servers.size() - 1 && servers.size() > 1) {
+            COUT << "Processing tail failure\n";
             // Tail failure
             auto new_tail = servers[idx-1];
-            grpc::ClientContext ctx;
-            notifySuccessorFailureReq req;
-            req.set_wastail(true);
-            req.set_newsuccessor("");
-            empty empty_response;
-            node_to_conn_map[servers[idx-1]]->notifySuccessorFailure(&ctx, req, &empty_response);
+            // grpc::ClientContext ctx;
+            // notifySuccessorFailureReq req;
+            // req.set_wastail(true);
+            // req.set_newsuccessor("");
+            // empty empty_response;
+            // node_to_conn_map[servers[idx-1]]->notifySuccessorFailure(&ctx, req, &empty_response);
 
             // Notify all other servers about the new tail
-            for (int i=0; i<idx-1; i++) {
+            for (int i=idx-1; i>=0; i--) {
                 tailFailureNotification req1;
                 req1.set_new_tail(new_tail);
                 grpc::ClientContext ctx;
+                empty empty_response;
                 node_to_conn_map[servers[i]]->notifyTailFailure(&ctx, req1, &empty_response);
             }
-        } else if (idx) {
+        } else if (idx && (idx + 1) < servers.size()) {
+            COUT << "Processing intermediate node failure\n";
             // Intermediate node failure
-            auto new_tail = servers[idx-1];
+            notifyPredFailureReq req;
+            req.set_newpred(servers[idx+1]);
+            req.set_washead(false);
             grpc::ClientContext ctx;
-            notifySuccessorFailureReq req;
-            req.set_wastail(true);
-            req.set_newsuccessor("");
             empty empty_response;
-            node_to_conn_map[servers[idx-1]]->notifySuccessorFailure(&ctx, req, &empty_response);
+            node_to_conn_map[servers[idx+1]]->notifyPredFailure(&ctx, req, &empty_response);
         }
         
         servers.erase(servers.begin() + idx);

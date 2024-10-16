@@ -55,7 +55,7 @@ namespace key_value_store
         }
     public:
         Worker() {
-            should_terminate.store(false);
+            should_terminate.store(true);
         }
 
         void pause() {
@@ -70,12 +70,15 @@ namespace key_value_store
         }
 
         void start() {
+            if (!should_terminate.load()) {
+                return;
+            }
             should_terminate.store(false);
             executor = std::thread(&Worker::run, this);
         }
 
         bool is_running() {
-            return should_terminate.load();
+            return !should_terminate.load();
         }
 
         void post(const std::function<void()> &func) {

@@ -214,6 +214,7 @@ namespace key_value_store {
 
     grpc::Status kv_storeImpl2::notifyPredFailure(grpc::ServerContext* context, 
                 const notifyPredFailureReq* request, empty *response) {
+        COUT << "Predecessor has failed. Reconfiguring...\n";
         bool was_head = request->washead();
         ack_thread.pause();
         
@@ -230,11 +231,23 @@ namespace key_value_store {
 
             is_head.store(true);
             COUT << "Successfully changed head to current node\n";
+            put_thread.start();
         } else {
             prev_addr = request->newpred();
             prev_stub = kv_store::NewStub(grpc::CreateChannel(prev_addr, grpc::InsecureChannelCredentials()));
+
+            grpc::ClientContext ctx;
+            notifySuccessorFailureReq req;
+            req.set_newsuccessor(addr);
+            req.set_wastail(false);
+            if (!sent_queue.isEmpty()) {
+                putReq last_put_req = sent_queue.front().value().rpc_putReq();
+                req.set_allocated_lastputreq(&last_put_req);
+            }
+            empty resp;
+            prev_stub->notifySuccessorFailure(&ctx, req, &resp);
         }
-        put_thread.start();
+        COUT << "Reconfiguration done...\n" << ack_thread.is_running() << "\n";
         ack_thread.start();
         return grpc::Status::OK;
     }
@@ -246,38 +259,39 @@ namespace key_value_store {
         ack_thread.pause();
         commit_thread.pause();
         if (was_tail) {
-            get_thread.pause();
-            COUT << "Processing tail failure at successor\n";
+            // /This is handled by notifyTailFailure
+            // get_thread.pause();
+            // COUT << "Processing tail failure at successor\n";
 
-            // Modify stubs
-            next_stub.reset();
-            tail_stub.reset();
+            // // Modify stubs
+            // next_stub.reset();
+            // tail_stub.reset();
 
-            // Modify addresses
-            next_addr.clear();
-            tail_addr.clear();
+            // // Modify addresses
+            // next_addr.clear();
+            // tail_addr.clear();
 
-            is_tail.store(true);
-            // Tail should hold connection to database
-            db_utils->open();
-            commit_sent_updates();
-            get_thread.start();
-            resp_thread.start();
+            // is_tail.store(true);
+            // // Tail should hold connection to database
+            // db_utils->open();
+            // commit_sent_updates();
+            // get_thread.start();
+            // resp_thread.start();
         } else {
             // Modify address and stub for new successor
             next_addr = request->newsuccessor();
             next_stub.reset();
             next_stub = kv_store::NewStub(grpc::CreateChannel(next_addr, grpc::InsecureChannelCredentials()));
-
+            auto last_put_req = request->lastputreq();
             // Notify new successor that its predecessor has failed
-            ClientContext ctx;
-            notifyPredFailureReq req;
-            req.set_newpred(addr);
-            req.set_washead(false);
-            empty resp;
-            next_stub->notifyPredFailure(&ctx, req, &resp);
+            // ClientContext ctx;
+            // notifyPredFailureReq req;
+            // req.set_newpred(addr);
+            // req.set_washead(false);
+            // empty resp;
+            // next_stub->notifyPredFailure(&ctx, req, &resp);
 
-            process_lost_updates();
+            process_lost_updates(last_put_req);
         }
         commit_thread.start();
         ack_thread.start();
@@ -333,11 +347,34 @@ namespace key_value_store {
 
     grpc::Status kv_storeImpl2::notifyTailFailure(grpc::ServerContext* context,
                 const tailFailureNotification* request, empty *response) {
+        ack_thread.pause();
+        commit_thread.pause();
         get_thread.pause();
         tail_addr = request->new_tail();
         tail_stub.reset();
-        tail_stub = kv_store::NewStub(grpc::CreateChannel(tail_addr, grpc::InsecureChannelCredentials()));
+        if (addr == tail_addr) {
+            COUT << "Processing tail failure at successor\n";
+
+            // Modify stubs
+            next_stub.reset();
+            tail_stub.reset();
+
+            // Modify addresses
+            next_addr.clear();
+            // tail_addr.clear();
+
+            is_tail.store(true);
+            // Tail should hold connection to database
+            db_utils->open();
+            commit_sent_updates();
+            resp_thread.start();
+        } else {
+            tail_stub = kv_store::NewStub(grpc::CreateChannel(tail_addr, grpc::InsecureChannelCredentials()));
+        }
+        
         get_thread.start();
+        commit_thread.start();
+        ack_thread.start();
         COUT << "Reconfiguration is successful\n";
         return grpc::Status::OK;
     }
@@ -356,17 +393,25 @@ namespace key_value_store {
         }
     }
 
-    void kv_storeImpl2::process_lost_updates() {
+    void kv_storeImpl2::process_lost_updates(const putReq& last_req) {
         ThreadSafeQueue<Request> tmp_queue;
+        bool found = false;
         while (true) {
             auto val = sent_queue.tryDequeue();
             if (!val.has_value()) {
                 break;
             }
-            ClientContext _context;
-            fwdPutReq _req = val.value().rpc_fwdPutReq();
-            empty _resp;
-            next_stub->commit(&_context, _req, &_resp);
+            
+            const putReq req = val.value().rpc_putReq();
+            if (found) {
+                ClientContext context;
+                empty _resp;
+                auto fwd_put_req = Request(req).rpc_fwdPutReq();
+                next_stub->commit(&context, fwd_put_req, &_resp);
+            }
+            if (Request(last_req).identicalRequests(req)) {
+                found = true;
+            }
             tmp_queue.enqueue(val.value());
         }
         sent_queue = std::move(tmp_queue);
