@@ -1,8 +1,6 @@
 #include "master.h"
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 
-#define COUT std::cout << __FILE__ << ":" << __LINE__ << " " 
-
 namespace key_value_store {
     grpc::Status MasterImpl::notifyRestart(grpc::ServerContext *context, const notifyRestartReq *req, 
             notifyRestartResponse *resp) {

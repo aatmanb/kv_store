@@ -31,7 +31,7 @@ namespace key_value_store {
 
         int num_volumes;
 
-        static constexpr int health_check_interval = 500; // in ms
+        static constexpr int health_check_interval = 2000; // in ms
 
         void check_health();
 

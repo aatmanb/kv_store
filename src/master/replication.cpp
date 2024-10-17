@@ -4,8 +4,6 @@
 
 #include <chrono>
 
-#define COUT std::cout << __FILE__ << ":" << __LINE__ << " " 
-
 namespace key_value_store {
     void print_chain(std::vector<std::string> &chain) {
         if (!chain.size()) return;
@@ -113,6 +111,7 @@ namespace key_value_store {
     void ReplicationManager::check_health() {
         COUT << "Launched thread for checking health of servers\n";
         while (run_health_check) {
+            COUT << "Sending heartbeats\n";
             std::vector<std::string> servers_to_remove;
             {
                 std::shared_lock<std::shared_mutex> lock {mtx};

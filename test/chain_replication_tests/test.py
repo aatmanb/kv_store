@@ -3,6 +3,7 @@ import sys
 import os
 import subprocess
 import time
+import signal
 
 import crash_consistency
 import correctness
@@ -83,9 +84,13 @@ def startServer(config, head=False, tail=False, head_port='', tail_port='', prev
     print(cmd)
     log_file = log_dir + f'server_{config[0]}.log'
 
+    global server_processes
+
     with open(log_file, 'w') as f:
-        process = subprocess.Popen(cmd, shell=True, stdout=f, stderr=f)
+        process = subprocess.Popen(cmd, shell=True, stdout=f, stderr=f, preexec_fn=os.setsid)
         server_processes.append(process)
+    
+    time.sleep(1)
 
 
 def createChain(server_list, master_port=''):
@@ -114,25 +119,36 @@ def createService(config_file, master_port=''):
         print(cmd)
         log_file = log_dir + f'master.log'
 
+        global master_processes
+
         with open(log_file, 'w') as f:
-            process = subprocess.Popen(cmd, shell=True, stdout=f, stderr=subprocess.PIPE)
+            process = subprocess.Popen(cmd, shell=True, stdout=f, stderr=subprocess.PIPE, preexec_fn=os.setsid)
             master_processes.append(process)
+
+    time.sleep(1)
 
     partitions = getPartitionConfig(config_file)
     for _, servers in partitions.items():
         createChain(servers, master_port)
 
+def terminateProcess(process):
+    pid = process.pid
+    try:
+        os.killpg(os.getpgid(pid), signal.SIGTERM)
+        process.wait()
+        print(f"Sent SIGTERM signal to process {pid}")
+    except OSError:
+        print(f"Failed to send SIGTERM signal to process {pid}")
+
 def terminateMaster():
+    global master_processes
     for process in master_processes:
-        process.terminate()
-        returncode = process.wait()
-        print(f"terminateMaster: return code: {returncode}")
+        terminateProcess(process)
 
 def terminateServers():
+    global server_processes
     for process in server_processes:
-        process.terminate()
-        returncode = process.wait()
-        print(f"terminateServers: return code: {returncode}")
+        terminateProcess(process)
 
 def terminateService():
     terminateMaster()
@@ -161,14 +177,16 @@ def startClients(args):
 
 def terminateClients():
     for process in client_processes:
-        process.terminate()
-        returncode = process.wait()
-        print(f"terminateClients: return code: {returncode}")
+        terminateProcess(process)
 
 def terminateTest():
     terminateClients()
     terminateService()
     sys.exit(1)   
+
+def waitToFinish():
+    for process in client_processes:
+        process.wait()
 
 if __name__ == "__main__":
 
@@ -183,6 +201,9 @@ if __name__ == "__main__":
     parser.add_argument('--num-clients', type=int, default=1, help='number of clients')
     parser.add_argument('--master-port', type=str, default='50000', help='master port')
 
+    parser.add_argument('--only-clients', action='store_true')
+    parser.add_argument('--only-service', action='store_true')
+
     args = parser.parse_args()
     
     top_dir = args.top_dir
@@ -193,22 +214,30 @@ if __name__ == "__main__":
     db_dir = top_dir + 'db/'
     log_dir = top_dir + args.log_dir
     
+    assert (not (args.only_clients and args.only_service))
+
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
-    try:
-        createService(config_file, args.master_port)
-    except Exception as e:
-        print(f"An unexpected exception occured: {e}")
-        terminateTest()
-        
-    time.sleep(10)
+    if (not args.only_clients):
+        try:
+            createService(config_file, args.master_port)
+        except Exception as e:
+            print(f"An unexpected exception occured: {e}")
+            terminateTest()
+            
+        time.sleep(10)
 
-    try:
-        startClients(args)
-    except Exception as e:
-        print(f"An unexpected exception occured: {e}")
-        terminateTest()
+    if (not args.only_service):
+        try:
+            startClients(args)
+        except Exception as e:
+            print(f"An unexpected exception occured: {e}")
+            terminateTest()
+
+        waitToFinish()
+    else:
+        kill = input("Press <enter> when you want to terminate the service: ")
 
     print("Test finished. Terminating service")
     terminateService()

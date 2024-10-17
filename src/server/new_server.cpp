@@ -18,8 +18,6 @@ using grpc::ClientContext;
 using grpc::ServerContext;
 using grpc::Status;
 
-#define COUT std::cout << __FILE__ << ":" << __LINE__ << " " 
-
 namespace key_value_store {
     void runServer(std::string &master_addr, std::string &local_addr) {
         kv_storeImpl2 service(master_addr, local_addr);
@@ -70,6 +68,7 @@ namespace key_value_store {
         }
         if (!head_addr.empty()) {
             head_stub = kv_store::NewStub(grpc::CreateChannel(head_addr, grpc::InsecureChannelCredentials()));
+            is_head.store(false);
         } else {
             is_head.store(true);
         }
@@ -103,7 +102,7 @@ namespace key_value_store {
     }
 
     grpc::Status kv_storeImpl2::get(ServerContext* context, const getReq* request, reqStatus* response) {
-        COUT << "id: " << id <<  " GET CALLED!!" << std::endl;
+        COUT << addr <<  " GET CALLED!!" << std::endl;
         Request req = Request(*request);
         try {
             get_thread.post(std::bind(&kv_storeImpl2::get_process, this, req));
@@ -142,6 +141,7 @@ namespace key_value_store {
     }
 
     grpc::Status kv_storeImpl2::fail(grpc::ServerContext* context, const failCommand* request, empty* response) {
+        COUT << addr << ": Fail called\n";
         bool clean = request->clean();
         if (clean) {
             grpc::ClientContext ctx;
@@ -252,8 +252,8 @@ namespace key_value_store {
         return grpc::Status::OK;
     }
 
-    grpc::Status kv_storeImpl2::notifySuccessorFailure(grpc::ServerContext* context, 
-                const notifySuccessorFailureReq* request, empty *response) {
+    grpc::Status kv_storeImpl2::notifySuccessorFailure(grpc::ServerContext* context, const notifySuccessorFailureReq* request, empty *response) {
+        COUT << addr << ": notifySuccessorFailure\n";
         std::string new_successor = request->newsuccessor();
         bool was_tail = request->wastail();
         ack_thread.pause();
@@ -333,8 +333,7 @@ namespace key_value_store {
         return grpc::Status::OK;
     }
 
-    grpc::Status kv_storeImpl2::notifyHeadFailure(grpc::ServerContext* context,
-                const headFailureNotification* request, empty *response) {
+    grpc::Status kv_storeImpl2::notifyHeadFailure(grpc::ServerContext* context, const headFailureNotification* request, empty *response) {
         COUT << "Received notification about head failure\n";
         put_thread.pause();
         head_addr = request->new_head();
@@ -349,6 +348,7 @@ namespace key_value_store {
                 const tailFailureNotification* request, empty *response) {
         ack_thread.pause();
         commit_thread.pause();
+        COUT << addr << ": notifyTailFailure\n";
         get_thread.pause();
         tail_addr = request->new_tail();
         tail_stub.reset();

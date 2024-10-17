@@ -2,6 +2,7 @@
 
 #include "kv_store.grpc.pb.h"
 #include "replication.h"
+#include "utils/utils.h"
 
 #include <grpcpp/grpcpp.h>
 

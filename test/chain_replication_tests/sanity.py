@@ -5,7 +5,7 @@ import sys
 sys.path.append('../../bin/')
 import libkv739_py as kv
 
-def runGetTest(config_file, id, num_keys=10):
+def runGetTest(config_file, id, num_keys):
     print("Running sanity GetTest")
     key = ""
     value = ""
@@ -21,7 +21,7 @@ def runGetTest(config_file, id, num_keys=10):
     kv.shutdown()
     print("GetTest completed")
 
-def runPutTest(config_file, id, num_keys=10):
+def runPutTest(config_file, id, num_keys):
     print("Running sanity PutTest")
     key = ""
     value = ""
@@ -40,8 +40,8 @@ def runPutTest(config_file, id, num_keys=10):
     kv.shutdown()
     print("PutTest completed")
 
-def runSanityTest(config_file, id):
+def runSanityTest(config_file, id, num_keys):
     print("Running sanity tests")
-    runPutTest(config_file, id)
-    runGetTest(config_file, id)
+    runPutTest(config_file, id, num_keys)
+    runGetTest(config_file, id, num_keys)
     print("Sanity tests completed")
