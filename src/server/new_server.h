@@ -113,5 +113,7 @@ namespace key_value_store {
          * Commits updates to db from sent queue after failure of tail
          */
         void commit_sent_updates();
+
+        void printConfig();
     };
 }

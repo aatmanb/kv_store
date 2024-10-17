@@ -4,6 +4,7 @@ import os
 import subprocess
 import time
 import signal
+import shutil
 
 import crash_consistency
 import correctness
@@ -188,6 +189,17 @@ def waitToFinish():
     for process in client_processes:
         process.wait()
 
+def checkAndMakeDir(path):
+    if os.path.exists(path) and os.path.isdir(path):
+        # If the directory exists, clear its contents
+        print(f"Directory '{path}' exists. Clearing its contents.")
+        shutil.rmtree(path)  # Remove the directory and all its contents
+        os.makedirs(path)  # Recreate the directory
+    else:
+        # Create the directory
+        print(f"Directory '{path}' does not exist. Creating it.")
+        os.makedirs(path)
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -216,8 +228,8 @@ if __name__ == "__main__":
     
     assert (not (args.only_clients and args.only_service))
 
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
+    checkAndMakeDir(log_dir)
+    checkAndMakeDir(db_dir)
 
     if (not args.only_clients):
         try:
@@ -240,6 +252,8 @@ if __name__ == "__main__":
         kill = input("Press <enter> when you want to terminate the service: ")
 
     print("Test finished. Terminating service")
+    # wait for sometime to flush the stdout buffers to the log file
+    time.sleep(5)
     terminateService()
     
     print("Test End")

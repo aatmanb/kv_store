@@ -9,6 +9,7 @@ ABSL_FLAG(uint16_t, master_port, -1, "port of master node");
 
 // namespace key_value_store {
     int main(int argc, char** argv) {
+        std::cout.setf(std::ios::unitbuf);
         absl::ParseCommandLine(argc, argv);
         // std::string db_dir = absl::GetFlag(FLAGS_db_dir) + "/";
         // if (db_dir == "") {

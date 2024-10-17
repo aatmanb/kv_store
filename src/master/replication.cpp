@@ -52,7 +52,7 @@ namespace key_value_store {
         int volume = server_to_chain_map[server];
         auto& servers = active_servers[volume];
         int idx = std::find(servers.begin(), servers.end(), server) - servers.begin();
-        if (!idx && servers.size() >= 2) {
+        if (!idx && servers.size() > 1) {
             COUT << "Processing head failure...\n";
             // Head failure
             auto new_head = servers[1];
@@ -95,7 +95,7 @@ namespace key_value_store {
             COUT << "Processing intermediate node failure\n";
             // Intermediate node failure
             notifyPredFailureReq req;
-            req.set_newpred(servers[idx+1]);
+            req.set_newpred(servers[idx-1]);
             req.set_washead(false);
             grpc::ClientContext ctx;
             empty empty_response;
@@ -127,7 +127,7 @@ namespace key_value_store {
                         COUT << "Detected failure of node: " << elem.first << "\n";
                     }
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds(health_check_interval));
+                std::this_thread::sleep_for(std::chrono::seconds(health_check_interval));
             }
 
             for (auto& server: servers_to_remove) {

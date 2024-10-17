@@ -247,13 +247,14 @@ namespace key_value_store {
             empty resp;
             prev_stub->notifySuccessorFailure(&ctx, req, &resp);
         }
-        COUT << "Reconfiguration done...\n" << ack_thread.is_running() << "\n";
+        COUT << "Reconfiguration done...\n";
+        printConfig();
         ack_thread.start();
         return grpc::Status::OK;
     }
 
     grpc::Status kv_storeImpl2::notifySuccessorFailure(grpc::ServerContext* context, const notifySuccessorFailureReq* request, empty *response) {
-        COUT << addr << ": notifySuccessorFailure\n";
+        COUT << "Successor has failed. Reconfiguring...\n";
         std::string new_successor = request->newsuccessor();
         bool was_tail = request->wastail();
         ack_thread.pause();
@@ -293,6 +294,8 @@ namespace key_value_store {
 
             process_lost_updates(last_put_req);
         }
+        COUT << "Reconfiguration done...\n";
+        printConfig();
         commit_thread.start();
         ack_thread.start();
         return grpc::Status::OK;
@@ -516,5 +519,9 @@ namespace key_value_store {
     grpc::Status kv_storeImpl2::heartBeat(grpc::ServerContext *context, 
             const empty* request, empty *response) {
         return grpc::Status::OK;
+    }
+
+    void kv_storeImpl2::printConfig() {
+        COUT << "addr: " << addr << " head_addr: " << head_addr << " tail_addr: " << tail_addr << " prev_addr: " << prev_addr << " next_addr: " << next_addr << std::endl;
     }
 }
