@@ -6,6 +6,8 @@
 #include <cstdlib>
 #include <chrono>
 #include <string>
+#include <mutex>
+#include <condition_variable>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
@@ -74,7 +76,7 @@ client::start_response_server(std::unique_ptr<grpc::Server>& server, std::string
     int selected_port;
     // Listen on the given address without any authentication mechanism.
     builder.AddListeningPort(addr, grpc::InsecureServerCredentials(), &selected_port);
-    KVResponseService service(&rcvd_resp, &status, &value);
+    KVResponseService service(&rcvd_resp, &status, &value, &condVar);
     // Register "service" as the instance through which we'll communicate with
     // clients. In this case it corresponds to an *synchronous* service.
     builder.RegisterService(&service);
@@ -93,7 +95,7 @@ client::start_response_server(std::unique_ptr<grpc::Server>& server, std::string
 int
 client::get(std::string key, std::string &value) {
     //std::string key_str = charArrayToString(key);
-    std::cout << "[client " << id << "] " << "get() called with key: " << key << std::endl;
+    //std::cout << "[client " << id << "] " << "get() called with key: " << key << std::endl;
     getReq request;
     request.set_key(key);
     auto *_meta = request.mutable_meta();
@@ -122,13 +124,15 @@ client::get(std::string key, std::string &value) {
         if (!status.ok()) continue;
 
         // Wait for response
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        if (!rcvd_resp.load()) {
+        std::unique_lock<std::mutex> lock(lock_for_rcvd_resp);
+        condVar.wait_for(lock, std::chrono::milliseconds(500), [this]{ return rcvd_resp.load(); });
+        //std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        //if (!rcvd_resp.load()) {
             // Resubmit the query
-            continue;
-        }
+            //continue;
+        //}
         rcvd_resp.store(false);
-        std::cout << "response server passed the value to client: " << this->value << std::endl;
+        //std::cout << "response server passed the value to client: " << this->value << std::endl;
         value = this->value;
         return this->status;
     }
@@ -164,7 +168,7 @@ client::put(std::string key, std::string value, std::string &old_value) {
     ////std::string key_str = charArrayToString(key);
     ////std::string value_str = charArrayToString(value);
     //
-    std::cout << "[client " << id << "] " << "put" << "(" << key << ")" << ": " << value << std::endl;
+    //std::cout << "[client " << id << "] " << "put" << "(" << key << ")" << ": " << value << std::endl;
     //
     putReq request;
     request.set_key(key);
@@ -192,12 +196,12 @@ client::put(std::string key, std::string value, std::string &old_value) {
 
     if (status.ok()) {
         // TODO: resp_retry_limit
-        std::cout << "waiting for server to respond: " << std::endl;
+        //std::cout << "waiting for server to respond: " << std::endl;
         while (!rcvd_resp.load()) {
              std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         rcvd_resp.store(false);
-        std::cout << "response server passed the value to client: " << this->value << std::endl;
+        //std::cout << "response server passed the value to client: " << this->value << std::endl;
             old_value = this->value;
             return this->status;
     }
@@ -241,20 +245,23 @@ client::getStub(const std::string& key, bool retry) {
 } 
 
 
-KVResponseService::KVResponseService(std::atomic<bool> *_rcvd_resp, int *_status, std::string *_value):
+KVResponseService::KVResponseService(std::atomic<bool> *_rcvd_resp, int *_status, std::string *_value, 
+                                     std::condition_variable *_condVar):
     rcvd_resp(_rcvd_resp),
     status(_status),
-    value(_value)
+    value(_value),
+    condVar(_condVar)
 {}
 
 grpc::Status
 KVResponseService::sendGetResp(grpc::ServerContext* context, const getResp* get_resp, respStatus* resp_status) {
-    std::cout << "received response for get" << std::endl;
+    //std::cout << "received response for get" << std::endl;
     *status = get_resp->status();
     *value = get_resp->value();
 
     resp_status->set_status(0);
     *rcvd_resp = true;
+    condVar->notify_one();
 
     return Status::OK; 
 }
@@ -262,11 +269,12 @@ KVResponseService::sendGetResp(grpc::ServerContext* context, const getResp* get_
 grpc::Status
 KVResponseService::sendPutResp(grpc::ServerContext* context, const putResp* put_resp, respStatus* resp_status) {
     // TODO
-    std::cout << "received response for put" << std::endl;
+    //std::cout << "received response for put" << std::endl;
     *status = put_resp->status();
     *value = put_resp->old_value();
 
     resp_status->set_status(0);
     *rcvd_resp = true;
+    condVar->notify_one();
     return Status::OK;
 }

@@ -12,7 +12,7 @@ def genRandomString (length):
     letters = string.ascii_lowercase
     return ''. join(random.choice(letters) for _ in range (length))
 
-def performanceTest (server, write_percentage = 10, db_keys = {}):
+def performanceTest (config_file, write_percentage = 10, db_keys = {}):
 
     if (len(db_keys) == 0):
         print ('db_keys is not populated. Populate db_keys')
@@ -29,7 +29,7 @@ def performanceTest (server, write_percentage = 10, db_keys = {}):
     read_times = []
     write_times = []
     
-    kv.init(server)
+    kv.init(config_file)
     expt_start = time.time_ns()
     for i in range (num_ops):
         random_value = np.random.randint(99)

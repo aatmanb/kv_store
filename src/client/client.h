@@ -10,6 +10,7 @@
 #include <thread>
 #include <condition_variable>
 #include <atomic>
+#include <mutex>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
@@ -57,18 +58,21 @@ private:
 
     const int req_retry_limit = 5;
     const int resp_retry_limit = 5;
- 
+    
+    std::condition_variable condVar;
+    std::mutex lock_for_rcvd_resp; 
 };
 
 class KVResponseService final : public KVResponse::Service {
 public:
-    KVResponseService(std::atomic<bool> *_rcvd_resp, int *_status, std::string *_value);
+    KVResponseService(std::atomic<bool> *_rcvd_resp, int *_status, std::string *_value, std::condition_variable *_condVar);
 
 private:
     std::string addr;
     std::atomic<bool> *rcvd_resp;
     int *status;
     std::string *value;
+    std::condition_variable *condVar;
 
     grpc::Status sendGetResp(grpc::ServerContext* context, const getResp* get_resp, respStatus* resp_status) override;
     grpc::Status sendPutResp(grpc::ServerContext* context, const putResp* put_resp, respStatus* resp_status) override;

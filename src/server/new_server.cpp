@@ -102,7 +102,7 @@ namespace key_value_store {
     }
 
     grpc::Status kv_storeImpl2::get(ServerContext* context, const getReq* request, reqStatus* response) {
-        COUT << addr <<  " GET CALLED!!" << std::endl;
+        //COUT << addr <<  " GET CALLED!!" << std::endl;
         Request req = Request(*request);
         try {
             get_thread.post(std::bind(&kv_storeImpl2::get_process, this, req));
@@ -118,7 +118,7 @@ namespace key_value_store {
         if (is_tail.load()) {
             resp_thread.post(std::bind(&kv_storeImpl2::serveRequest, this, req));
         } else {
-	        COUT << "forwarding to tail: " << tail_addr << std::endl;
+	        //COUT << "forwarding to tail: " << tail_addr << std::endl;
             ClientContext _context;
             fwdGetReq _req = req.rpc_fwdGetReq();
             empty _resp;
@@ -127,7 +127,7 @@ namespace key_value_store {
     }
 
     grpc::Status kv_storeImpl2::put(grpc::ServerContext* context, const putReq* request, reqStatus* response) {	
-	    COUT << addr << ": PUT CALLED!!\n";
+	    //COUT << addr << ": PUT CALLED!!\n";
         Request req = Request(*request);
 
         try {
@@ -161,7 +161,7 @@ namespace key_value_store {
             commit_thread.post(std::bind(&kv_storeImpl2::commit_process, this, req));
         }
         else {
-            COUT << "Fowarding put to head: " << head_addr << "\n";
+            //COUT << "Fowarding put to head: " << head_addr << "\n";
             // TODO
 	        // Acknowledge that we received the PUT request
 	        // TODO: response->set_status(KV_PUT_RECEIVED);
@@ -181,16 +181,16 @@ namespace key_value_store {
     }
     
     grpc::Status kv_storeImpl2::fwdGet(ServerContext* context, const fwdGetReq* request, empty* response) {
-        COUT << "id: " << id <<  " received fwdGetReq" << std::endl;
+        //COUT << "id: " << id <<  " received fwdGetReq" << std::endl;
         // TODO(): This assertion could fail during reconfiguration
         assert(is_tail.load()); // Only tail shoudl receive forwarded getReq
-        COUT << "pushing to pending Q" << std::endl;
+        //COUT << "pushing to pending Q" << std::endl;
         resp_thread.post(std::bind(&kv_storeImpl2::serveRequest, this, Request(*request)));
         return Status::OK;
     }
 
     grpc::Status kv_storeImpl2::fwdPut(ServerContext* context, const fwdPutReq* request, empty* response) {
-	    COUT << addr << " received fwdPutReq\n";
+	    //COUT << addr << " received fwdPutReq\n";
         assert(is_head.load());
 	    Request req = Request(*request);
         commit_thread.post(std::bind(&kv_storeImpl2::commit_process, this, req));
@@ -198,7 +198,7 @@ namespace key_value_store {
     }
 
     grpc::Status kv_storeImpl2::commit(ServerContext* context, const fwdPutReq* request, empty* response) {
-	    COUT << addr << " received commit\n";
+	    //COUT << addr << " received commit\n";
         assert(!is_head.load());
         Request req = Request(*request);
         commit_thread.post(std::bind(&kv_storeImpl2::commit_process, this, req));
@@ -206,7 +206,7 @@ namespace key_value_store {
     }
     
     grpc::Status kv_storeImpl2::ack(ServerContext* context, const putAck* request, empty* response) {
-	    COUT << addr << " received ack\n";
+	    //COUT << addr << " received ack\n";
         assert(!is_tail.load());
         ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, Request(*request)));
         return Status::OK;
@@ -465,19 +465,19 @@ namespace key_value_store {
         assert(is_tail.load());
 
         std::string client_addr = req.addr;
-        COUT << "client_addr: " << client_addr << std::endl;
+        //COUT << "client_addr: " << client_addr << std::endl;
         client_stub = KVResponse::NewStub(grpc::CreateChannel(client_addr, grpc::InsecureChannelCredentials()));
         ClientContext _context;
         respStatus _resp;
 
         if (req.type == request_t::GET) {
-            COUT << "Processing client get() request" << std::endl;
+            //COUT << "Processing client get() request" << std::endl;
             getResp _req;
 
             // auto part_mgr = PartitionManager::get_instance();
             // auto partition = part_mgr->get_partition(req.key);
             // auto value = partition->get(req.key);
-            COUT << req.key << "\n";
+            //COUT << req.key << "\n";
             auto value = db_utils->get_value(req.key.c_str());
             _req.set_value(value);
             if (value == "") {
@@ -489,9 +489,9 @@ namespace key_value_store {
             // Send response to client
             Status status = client_stub->sendGetResp(&_context, _req, &_resp);
             // Send ack to predecessor
-            COUT << "Sent get response to client" << std::endl;
+            //COUT << "Sent get response to client" << std::endl;
         } else if (req.type == request_t::PUT) {
-            COUT << "Processing client put() request" << std::endl;
+            //COUT << "Processing client put() request" << std::endl;
             putResp _req;
             // auto part_mgr = PartitionManager::get_instance();
             // auto partition = part_mgr->get_partition(req.key);
@@ -509,7 +509,7 @@ namespace key_value_store {
             Status status = client_stub->sendPutResp(&_context, _req, &_resp);
             // Send ack to predecessor
             ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, req));
-            COUT << "Sent put response to client" << std::endl;
+            //COUT << "Sent put response to client" << std::endl;
         } else {
             std::cerr << "Invalid request type" << std::endl;
             std::exit(1);

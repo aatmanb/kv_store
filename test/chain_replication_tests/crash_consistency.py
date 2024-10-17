@@ -8,7 +8,7 @@ max_retries = 5
 wait_before_retry = 1
 db_keys = {}
 overwritten_keys = {}
-def populateDB(server, file, crash_consistency_test=False):
+def populateDB(config_file, data_file, crash_consistency_test=False):
     print ("----------- [test] Start populateDB ------------")
     
     abort = False
@@ -19,8 +19,8 @@ def populateDB(server, file, crash_consistency_test=False):
 
     try:
         # Open a db connection
-        kv.init(server)
-        with open(file, "r") as real_keys:
+        kv.init(config_file)
+        with open(data_file, "r") as real_keys:
             lines = real_keys.readlines()
             for line in lines:
                 start = 0

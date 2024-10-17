@@ -16,7 +16,7 @@
 
 namespace key_value_store {
     inline std::string get_db_name_for_volume(int volume) {
-        return std::string("db_volume_") + std::to_string(volume);
+        return std::string("db_volume_") + std::to_string(volume) + std::string(".db");
     }
 
     class DatabaseUtils {

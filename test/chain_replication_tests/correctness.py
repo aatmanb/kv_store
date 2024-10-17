@@ -17,7 +17,7 @@ def getKeyNumber(skewFactor, num_keys_populated):
         return np.random.randint(freq_gp_size)
     return np.random.randint(freq_gp_size, num_keys_populated)
 
-def correctnessTest(server, fake_keys, db_keys, overwritten_keys, crash_consistency_test = False):
+def correctnessTest(config_file, fake_keys, db_keys, overwritten_keys, crash_consistency_test = False):
     
     if (len(db_keys) == 0):
         print ('db_keys is not populated. Populated the db first')
@@ -33,7 +33,7 @@ def correctnessTest(server, fake_keys, db_keys, overwritten_keys, crash_consiste
         
     print ('Testing Real Keys')
     
-    kv.init(server)
+    kv.init(config_file)
     for num_reads_performed in range (0, num_reads):
         status = -1
         num_retries = 0

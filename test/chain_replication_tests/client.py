@@ -21,7 +21,7 @@ if __name__ == "__main__":
     parser.add_argument('--test-type', type=str, default='sanity', help='sanity, correctness, crash_consistency, perf')
     parser.add_argument('--top-dir', type=str, default='', help='path to top dir')
     parser.add_argument('--log-dir', type=str, default='out/', help='path to log dir')
-    parser.add_argument('--num-keys', type=int, default=1, help='number of gets to put and get in sanity test')
+    parser.add_argument('--num-keys', type=int, default=10, help='number of gets to put and get in sanity test')
 
     args = parser.parse_args()
     
@@ -60,10 +60,12 @@ if __name__ == "__main__":
             performance.performanceTest(config_file, 10, db_keys)
         elif (test_type == 'crash_consistency'):
             correctness.correctnessTest(config_file, args.fake_fname, db_keys, overwritten_keys, crash_consistency_test)
-        elif (type_type == 'correctness'):
+        elif (test_type == 'correctness'):
+            # Populate DB
+            db_keys, overwritten_keys = crash_consistency.populateDB(config_file, args.real_fname, crash_consistency_test)
             correctness.correctnessTest(config_file, args.fake_fname, db_keys, overwritten_keys)
         else:
             raise ValueError(f"Invalid test type {test_type}")
     except Exception as e:
-        print(f"An unexpected exception occured: {e}")
+        print(f"An unexpected exception occured: {e}, {args}")
         sys.exit(1)

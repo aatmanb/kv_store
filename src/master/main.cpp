@@ -11,7 +11,7 @@ ABSL_FLAG(int, port, 50000, "port");
 int main(int argc, char** argv) {
     std::cout.setf(std::ios::unitbuf);
     absl::ParseCommandLine(argc, argv);
-    std::string db_dir = absl::GetFlag(FLAGS_db_dir) + "/";
+    std::string db_dir = absl::GetFlag(FLAGS_db_dir);
     std::string config_path = absl::GetFlag(FLAGS_config_path);
     int port = absl::GetFlag(FLAGS_port);
     if (db_dir == "") {
