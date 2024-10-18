@@ -452,25 +452,12 @@ namespace key_value_store {
             
             // Write into own db
             db_utils->put_value(req.key.c_str(), req.value.c_str());
-            if (next_addr.substr(next_addr.size() - 5) == "50030") {
-                std::cout << "Calling die\n";
-                ClientContext _context;
-                failCommand req; req.set_clean(true);
-                empty resp;
-                auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
-                _context.set_deadline(deadline);
-                next_stub->fail(&_context, req, &resp);
-                COUT << "Called die\n";
-            }
 	        ClientContext _context;
             fwdPutReq _req = req.rpc_fwdPutReq();
             empty _resp;
             auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
             _context.set_deadline(deadline);
             next_stub->commit(&_context, _req, &_resp);
-            if (next_addr.substr(next_addr.size() - 5) == "50030") {
-                COUT << "Commit RPC called\n";
-            }
         }
         else {
             resp_thread.post(std::bind(&kv_storeImpl2::serveRequest, this, req));
