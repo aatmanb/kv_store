@@ -63,8 +63,8 @@ namespace key_value_store {
        
         ThreadSafeQueue<Request> pending_q; 
         ThreadSafeQueue<Request> sent_queue;
-        ThreadSafeHashMap<std::string, std::string> local_map;
-        
+        ThreadSafeHashMap<std::string, int> uncommitted_updates_per_key;
+
         std::string client_addr; // The client which send the request 
  
         grpc::Status get(grpc::ServerContext* context, const getReq* request, reqStatus* response) override;
@@ -117,7 +117,7 @@ namespace key_value_store {
         /**
          * Commits updates to db from sent queue after failure of tail
          */
-        void commit_sent_updates();
+        // void commit_sent_updates();
 
         void printConfig();
     };

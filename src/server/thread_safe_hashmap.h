@@ -18,15 +18,15 @@ public:
         map_cv.notify_one();                         // Notify a waiting thread (if any)
     }
 
+    T operator [](const Key& key) {
+        return get(key);
+    }
+
     // Get value associated with a key
     // Returns a std::optional to indicate success or failure
-    std::optional<T> get(const Key& key) const {
+    T get(const Key& key) {
         std::lock_guard<std::mutex> lock(map_mutex);
-        auto it = map.find(key);
-        if (it != map.end()) {
-            return it->second;  // Return value if key found
-        }
-        return std::nullopt;  // Return empty optional if key not found
+        return map[key];
     }
 
     // Erase a key from the map

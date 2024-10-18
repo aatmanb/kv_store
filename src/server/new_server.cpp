@@ -115,10 +115,12 @@ namespace key_value_store {
     }
 
     void kv_storeImpl2::get_process(Request req) {
-        if (is_tail.load()) {
+        // Current node can serve the get request if the local database stores the most recent version        
+        if (is_tail.load() || !uncommitted_updates_per_key[req.key]) {
             resp_thread.post(std::bind(&kv_storeImpl2::serveRequest, this, req));
         } else {
 	        //COUT << "forwarding to tail: " << tail_addr << std::endl;
+            // Forward to tail
             ClientContext _context;
             fwdGetReq _req = req.rpc_fwdGetReq();
             empty _resp;
@@ -377,7 +379,7 @@ namespace key_value_store {
             is_tail.store(true);
             // Tail should hold connection to database
             // db_utils->open();
-            commit_sent_updates();
+            // commit_sent_updates();
             resp_thread.start();
         } else {
             tail_stub = kv_store::NewStub(grpc::CreateChannel(tail_addr, grpc::InsecureChannelCredentials()));
@@ -390,19 +392,19 @@ namespace key_value_store {
         return grpc::Status::OK;
     }
 
-    void kv_storeImpl2::commit_sent_updates() {
-        while (true) {
-            auto req_opt = sent_queue.front();
-            if (!req_opt.has_value()) {
-                break;
-            }
-            auto req = req_opt.value();
-            auto old_value = db_utils->put_value(req.key.c_str(), req.value.c_str());
-            if (!is_head.load()) {
-                ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, req));
-            }
-        }
-    }
+    // void kv_storeImpl2::commit_sent_updates() {
+    //     while (true) {
+    //         auto req_opt = sent_queue.front();
+    //         if (!req_opt.has_value()) {
+    //             break;
+    //         }
+    //         auto req = req_opt.value();
+    //         auto old_value = db_utils->put_value(req.key.c_str(), req.value.c_str());
+    //         if (!is_head.load()) {
+    //             ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, req));
+    //         }
+    //     }
+    // }
 
     void kv_storeImpl2::process_lost_updates(const putReq& last_req) {
         ThreadSafeQueue<Request> tmp_queue;
@@ -429,17 +431,16 @@ namespace key_value_store {
     }
 
     void kv_storeImpl2::commit_process(Request req) {
-        // TODO:
-        // 1. Commit to own database
-        local_map.insert(req.key, req.value);
-        sent_queue.enqueue(req);
+        sent_queue.enqueue(req); // sent_queue should be updated after sending?
         if (!is_tail.load()) {
             /**
              * Break this into 2 steps:
              * - Thread 1: Write to database/hashmap, append to to_send queue
              * - Thread 2: Forward commit from to_send queue, append to sent queue
              */
-            // auto put_req = req.rpc_putReq();
+            int dirty_updates = uncommitted_updates_per_key[req.key];
+            uncommitted_updates_per_key.insert(req.key, dirty_updates+1);
+            
             // Write into own db
             db_utils->put_value(req.key.c_str(), req.value.c_str());
 	        ClientContext _context;
@@ -454,6 +455,14 @@ namespace key_value_store {
 
     void kv_storeImpl2::ack_process(Request req) {
         Request curr_req = sent_queue.dequeue();
+        auto dirty_updates = uncommitted_updates_per_key[req.key];
+        if (!is_tail.load() &&  dirty_updates) {
+            if (dirty_updates == 1) {
+                uncommitted_updates_per_key.erase(req.key);
+            } else {
+                uncommitted_updates_per_key.insert(req.key, dirty_updates-1);
+            }
+        }
 
         if (!req.identicalRequests(curr_req)) {
             req.dumpRequestInfo();
@@ -473,8 +482,6 @@ namespace key_value_store {
     }
 
     void kv_storeImpl2::serveRequest(Request &req) {
-        assert(is_tail.load());
-
         std::string client_addr = req.addr;
         //COUT << "client_addr: " << client_addr << std::endl;
         client_stub = KVResponse::NewStub(grpc::CreateChannel(client_addr, grpc::InsecureChannelCredentials()));
@@ -485,10 +492,6 @@ namespace key_value_store {
             //COUT << "Processing client get() request" << std::endl;
             getResp _req;
 
-            // auto part_mgr = PartitionManager::get_instance();
-            // auto partition = part_mgr->get_partition(req.key);
-            // auto value = partition->get(req.key);
-            //COUT << req.key << "\n";
             auto value = db_utils->get_value(req.key.c_str());
             _req.set_value(value);
             if (value == "") {
@@ -499,7 +502,6 @@ namespace key_value_store {
             
             // Send response to client
             Status status = client_stub->sendGetResp(&_context, _req, &_resp);
-            // Send ack to predecessor
             //COUT << "Sent get response to client" << std::endl;
         } else if (req.type == request_t::PUT) {
             //COUT << "Processing client put() request" << std::endl;
