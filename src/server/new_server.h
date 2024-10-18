@@ -44,7 +44,6 @@ namespace key_value_store {
         uint32_t id;
 	const char *db_name;
         std::unique_ptr<DatabaseUtils> db_utils;
-        static constexpr int CONNECTION_TIMEOUT = 100;
 
         std::atomic<bool> is_tail;
         std::atomic<bool> is_head;
