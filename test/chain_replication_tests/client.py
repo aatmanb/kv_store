@@ -6,7 +6,7 @@ import time
 
 import crash_consistency
 import correctness
-import performance
+import performance_test
 import sanity
 
 
@@ -21,8 +21,10 @@ if __name__ == "__main__":
     parser.add_argument('--test-type', type=str, default='sanity', help='sanity, correctness, crash_consistency, perf')
     parser.add_argument('--top-dir', type=str, default='', help='path to top dir')
     parser.add_argument('--log-dir', type=str, default='out/', help='path to log dir')
-    parser.add_argument('--num-keys', type=int, default=10, help='number of gets to put and get in sanity test')
-
+    parser.add_argument('--num-keys', type=int, default=5, help='number of gets to put and get in sanity test')
+    parser.add_argument('--vk_ratio', type=int, default=0, help='ratio of value length to key length')
+    parser.add_argument('--skew', action='store_true')
+ 
     args = parser.parse_args()
     
     if (args.top_dir):
@@ -31,6 +33,7 @@ if __name__ == "__main__":
         top_dir = '../../'
 
     client_id = args.id
+    vk_ratio = args.vk_ratio
     if (id == -1): 
         print ('Client id invalid. Please pass a positive integer as the client id.') 
         sys.exit(1)
@@ -41,25 +44,31 @@ if __name__ == "__main__":
     bin_dir = top_dir + 'bin/'
     db_dir = top_dir + 'db/'
     log_dir = top_dir + args.log_dir
+    skew = args.skew
     
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
-    crash_consistency_test = (test_type == 'crash_consistency')
-    performance_test = (test_type == 'perf')
-
     db_keys = {}
     overwritten_keys = {}
-
+    keys = []
+    values = []
     try:
         if (test_type == 'sanity'):
-            sanity.runSanityTest(config_file, id, args.num_keys)
+            sanity.runSanityTest(config_file, client_id, args.num_keys)
+
         elif (test_type == 'perf'):
+            num_keys = 600
             # Populate DB
-            db_keys, overwritten_keys = crash_consistency.populateDB(config_file, args.real_fname, crash_consistency_test)
-            performance.performanceTest(config_file, 10, db_keys)
+            keys, values = performance_test.populateDB(config_file, client_id, num_keys, vk_ratio)
+            if (vk_ratio != 0):
+                performance_test.performanceTest(config_file, vk_ratio, num_keys, 0, skew, keys, values)
+            else:
+                performance_test.performanceTest(config_file, vk_ratio, num_keys, 10, skew, keys, values)
+
         elif (test_type == 'crash_consistency'):
             correctness.correctnessTest(config_file, args.fake_fname, db_keys, overwritten_keys, crash_consistency_test)
+
         elif (test_type == 'correctness'):
             # Populate DB
             db_keys, overwritten_keys = crash_consistency.populateDB(config_file, args.real_fname, crash_consistency_test)

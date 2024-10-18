@@ -59,7 +59,7 @@ if __name__ == '__main__':
     
     parser.add_argument('--pids', nargs='+', type=int)
     parser.add_argument('--duration', default=None, type=int)
-    parser.add_argument('--snapshot-duration', default=2, type=int)
+    parser.add_argument('--snapshot-duration', default=1, type=int)
     parser.add_argument('--log-dir', default='out/', type=str)
 
     args = parser.parse_args()
