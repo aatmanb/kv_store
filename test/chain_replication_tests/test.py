@@ -15,6 +15,7 @@ bin_dir = ''
 db_dir = ''
 log_dir = ''
 
+load_measurement_processes = []
 master_processes = []
 server_processes = []
 client_processes = []
@@ -177,10 +178,13 @@ def startClients(args):
 
 
 def terminateClients():
+    global client_processes
     for process in client_processes:
         terminateProcess(process)
 
 def terminateTest():
+    for process in load_measurement_processes:
+        terminateProcess(process)
     terminateClients()
     terminateService()
     sys.exit(1)   
@@ -199,6 +203,22 @@ def checkAndMakeDir(path):
         # Create the directory
         print(f"Directory '{path}' does not exist. Creating it.")
         os.makedirs(path)
+
+def startLoadMeasurement(log_dir, master_processes, server_processes):
+    cmd = 'python3 measure_load.py'
+    pid_str = ''
+    for process in master_processes:
+        pid_str += ' ' + str(process.pid)
+    for process in server_processes:
+        pid_str += ' ' + str(process.pid)
+    cmd += ' ' + f'--pids' + pid_str
+    cmd += ' ' + f'--snapshot-duration=2'
+    cmd += ' ' + f'--log-dir={log_dir}'
+
+    print(cmd)
+    global load_measurement_processes 
+    process = subprocess.Popen(cmd, shell=True)
+    load_measurement_processes.append(process)
 
 if __name__ == "__main__":
 
@@ -240,6 +260,8 @@ if __name__ == "__main__":
             
         time.sleep(10)
 
+    startLoadMeasurement(log_dir, master_processes, server_processes)
+
     if (not args.only_service):
         try:
             startClients(args)
@@ -253,7 +275,9 @@ if __name__ == "__main__":
 
     print("Test finished. Terminating service")
     # wait for sometime to flush the stdout buffers to the log file
-    time.sleep(5)
+    time.sleep(20)
     terminateService()
+    for process in load_measurement_processes:
+        terminateProcess(process)
     
     print("Test End")
