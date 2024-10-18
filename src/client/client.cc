@@ -103,61 +103,30 @@ client::get(std::string key, std::string &value) {
     // request.set_id(id);
 
     reqStatus response;
-
-    ClientContext context;
     auto deadline = std::chrono::system_clock::now() + std::chrono::seconds(timeout);
-    context.set_deadline(deadline);
-    
-    // std::unique_ptr<kv_store::Stub>& stub_ = getStub(key);
-    // Status status = stub_->get(&context, request, &response);
     int num_retry = 0;
 
     while (num_retry < req_retry_limit) {
-        //std::cout << "REtry: " << num_retry << "\n";
         // Submit query
-        std::unique_ptr<kv_store::Stub>& stub_ = getStub(key, num_retry);
+        std::unique_ptr<kv_store::Stub>& stub_ = getStub(key, num_retry>0);
         num_retry++;
-        if (!stub_) {
-            std::cout << "nullptr\n";
-        }        
+        ClientContext context;
+        context.set_deadline(deadline);
         auto status = stub_->get(&context, request, &response);
         if (!status.ok()) continue;
 
         // Wait for response
         std::unique_lock<std::mutex> lock(lock_for_rcvd_resp);
-        condVar.wait_for(lock, std::chrono::milliseconds(500), [this]{ return rcvd_resp.load(); });
-        //std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        //if (!rcvd_resp.load()) {
-            // Resubmit the query
-            //continue;
-        //}
-        rcvd_resp.store(false);
-        //std::cout << "response server passed the value to client: " << this->value << std::endl;
-        value = this->value;
-        return this->status;
+        auto no_timeout = condVar.wait_for(lock, std::chrono::milliseconds(500), [this]{ return rcvd_resp.load(); });
+        if (no_timeout) {
+            rcvd_resp.store(false);
+            std::cout << "response server passed the value to client: " << this->value << std::endl;
+            value = this->value;
+            return this->status;
+        }
     }
 
-    // while (!status.ok() && (req_retry>0)) {
-    //     // Send the request to a another server because previous rpc failed
-    //     req_retry--;
-    //     std::unique_ptr<kv_store::Stub>& stub_ = getStub(key, true);
-    //     status = stub_->get(&context, request, &response);
-    // }
-
-    // if (status.ok()) {
-    //     // TODO: resp_retry_limit
-    //     std::cout << "waiting for server to respond: " << std::endl;
-    //     while(!(rcvd_resp.load())) {
-    //         //std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    //     }
-    //     rcvd_resp.store(false);
-    //     std::cout << "response server passed the value to client: " << this->value << std::endl;
-    //     value = this->value;
-    //     return this->status;
-    // }
-
     // We will reach here if req_retry_limit was reached
-    // std::cerr << __FILE__ << "[" << __LINE__ << "]" << status.error_message() << std::endl;
     std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Retries exhausted" << std::endl;
     return -1;
         
@@ -165,11 +134,6 @@ client::get(std::string key, std::string &value) {
 
 int
 client::put(std::string key, std::string value, std::string &old_value) {
-    ////std::string key_str = charArrayToString(key);
-    ////std::string value_str = charArrayToString(value);
-    //
-    //std::cout << "[client " << id << "] " << "put" << "(" << key << ")" << ": " << value << std::endl;
-    //
     putReq request;
     request.set_key(key);
     request.set_value(value);
@@ -190,7 +154,9 @@ client::put(std::string key, std::string value, std::string &old_value) {
     while (!status.ok() && (req_retry>0)) {
         // Send the request to a another server because previous rpc failed
         req_retry--;
-        //std::unique_ptr<kv_store::Stub>& stub_ = getStub(key, true);
+        std::unique_ptr<kv_store::Stub>& stub_ = getStub(key, true);
+        ClientContext context;
+        context.set_deadline(deadline);
         status = stub_->put(&context, request, &response);
     }
 
@@ -241,7 +207,9 @@ client::getStub(const std::string& key, bool retry) {
     
     if (retry) {
         PartitionConfig partition = partitions[partition_id];
-        std::unique_ptr<kv_store::Stub> stub_ = createStub(std::stoi(partition.getServer()));
+        std::string server = partition.getServer();
+        std::cout << "Contacting server: " << server << "\n";
+        std::unique_ptr<kv_store::Stub> stub_ = createStub(std::stoi(server));
         stubs[partition_id] = std::move(stub_);
     }
 
@@ -262,6 +230,7 @@ KVResponseService::sendGetResp(grpc::ServerContext* context, const getResp* get_
     //std::cout << "received response for get" << std::endl;
     *status = get_resp->status();
     *value = get_resp->value();
+    std::cout << "Value in response: " << get_resp->value() << "\n";
 
     resp_status->set_status(0);
     *rcvd_resp = true;
@@ -273,7 +242,7 @@ KVResponseService::sendGetResp(grpc::ServerContext* context, const getResp* get_
 grpc::Status
 KVResponseService::sendPutResp(grpc::ServerContext* context, const putResp* put_resp, respStatus* resp_status) {
     // TODO
-    //std::cout << "received response for put" << std::endl;
+    std::cout << "received response for put" << std::endl;
     *status = put_resp->status();
     *value = put_resp->old_value();
 
