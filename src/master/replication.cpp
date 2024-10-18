@@ -160,7 +160,11 @@ namespace key_value_store {
         int i = 0;
         for (const auto& part: partitions) {
             for (const auto& server: part.get_servers()) {
-                server_to_chain_map[server] = i;
+                // Server contains only the port. Get the actual address
+                auto server_with_hostname = "0.0.0.0:" + server;
+                server_to_chain_map[server_with_hostname] = i;
+                server_with_hostname = "localhost:" + server;
+                server_to_chain_map[server_with_hostname] = i;
             }
             i++;
         }
