@@ -79,10 +79,14 @@ namespace key_value_store {
         grpc::Status commit(grpc::ServerContext *context, const fwdPutReq* request, empty *response) override;
         grpc::Status ack(grpc::ServerContext *context, const putAck* request, empty *response) override;
         grpc::Status heartBeat(grpc::ServerContext *context, const empty* request, empty *response) override;
+        grpc::Status syncDB(grpc::ServerContext *context, grpc::ServerReader<dbEntry>* reader, empty *response) override;
 
         // Reconfiguration RPCs
         grpc::Status notifyPredFailure(grpc::ServerContext* context, 
                 const notifyPredFailureReq* request, empty *response) override;
+        /**
+         * Notifies server if its successor was failed (only called if the successor was not the tail of the chain)
+         */
         grpc::Status notifySuccessorFailure(grpc::ServerContext* context, 
                 const notifySuccessorFailureReq* request, empty *response) override;
         grpc::Status addTailNode(grpc::ServerContext *context, const addTailNodeReq *req, 
@@ -91,6 +95,7 @@ namespace key_value_store {
                 const headFailureNotification* request, empty *response) override;
         grpc::Status notifyTailFailure(grpc::ServerContext* context,
                 const tailFailureNotification* request, empty *response) override;
+
         // grpc::Status populateDB(grpc::ServerContext *context, const empty *request, dbPath* response) override;
 
         // std::thread resp_thread; // This threads pops request from pending_q and sends response to the client. This is used by tail node only.

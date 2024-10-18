@@ -1,9 +1,13 @@
 #pragma once
 
+#include "kv_store.grpc.pb.h"
+
 #include <cstring>
 #include <iostream>
 #include "singleton.h"
 #include "sqlite3/sqlite3.h"
+#include <grpcpp/grpcpp.h>
+
 
 #define DB_CREATE_FAIL 0
 #define DB_CREATE_SUCCESS 1
@@ -15,8 +19,8 @@
 #define DB_UPDATE_SUCCESS 1
 
 namespace key_value_store {
-    inline std::string get_db_name_for_volume(int volume) {
-        return std::string("db_volume_") + std::to_string(volume) + std::string(".db");
+    inline std::string get_db_name_for_volume(int volume, int port) {
+        return std::string("db_volume_") + std::to_string(volume) + "_" + std::to_string(port) + std::string(".db");
     }
 
     class DatabaseUtils {
@@ -60,6 +64,35 @@ namespace key_value_store {
 
             ~DatabaseUtils() {
                 close();
+            }
+
+            void write_all_rows(std::unique_ptr<grpc::ClientWriter<dbEntry>> &writer) {
+                if (!is_db_open) return;
+                sqlite3_stmt *get_stmt;
+                const char *select_all_rows_sql = "SELECT user_key,user_value FROM KV_STORE";
+                if (sqlite3_prepare_v2(kv_persist_store, select_all_rows_sql, -1, &get_stmt, NULL) != SQLITE_OK) {
+                    std::cout << __FILE__ << "[" << __LINE__ << "]" << "Failed to prepare SQL statement: " << sqlite3_errmsg(kv_persist_store) << std::endl;
+                }
+
+                while (true) {
+                    auto step_val = sqlite3_step(get_stmt);
+                    if (step_val == SQLITE_ERROR) {
+                        std::cout << __FILE__ << "[" << __LINE__ << "]" << "Failed to execute stmt: " << sqlite3_errmsg(kv_persist_store) << std::endl;
+                        break;
+                    } else if (step_val == SQLITE_DONE) {
+                        break;
+                    }
+
+                    dbEntry entry;
+                    entry.set_key(std::string(
+                        reinterpret_cast<const char*>(sqlite3_column_text(get_stmt, 0))
+                    ));
+                    entry.set_value(std::string(
+                        reinterpret_cast<const char*>(sqlite3_column_text(get_stmt, 1))
+                    ));
+                    if (!writer->Write(entry)) break;
+                }
+                sqlite3_finalize(get_stmt);
             }
 
 

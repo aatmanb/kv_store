@@ -114,6 +114,7 @@ service kv_store {
     rpc addTailNode (addTailNodeReq) returns (empty) {};
 
     // rpc populateDB (empty) returns (dbPath) {};
+    rpc syncDB (stream dbEntry) returns (empty) {};
 }
 
 service master {

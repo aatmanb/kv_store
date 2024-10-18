@@ -5,6 +5,11 @@
 #include <chrono>
 
 namespace key_value_store {
+    int get_port_from_server(const std::string &server) {
+        int idx = server.find_first_of(":", 0);
+        return std::stoi(server.substr(idx+1));
+    }
+
     void print_chain(std::vector<std::string> &chain) {
         if (!chain.size()) return;
         COUT << "(Head) " << chain[0];
@@ -41,8 +46,8 @@ namespace key_value_store {
         COUT << "Successfully added " << server << " to the chain\n";
         node_to_conn_map[server] = std::move(kv_store::NewStub(grpc::CreateChannel(server, grpc::InsecureChannelCredentials())));
         active_servers[volume].push_back(server);
-            
-        resp->set_db_path(db_dir + get_db_name_for_volume(volume));
+        
+        resp->set_db_path(db_dir + get_db_name_for_volume(volume, get_port_from_server(server)));
         print_chain(active_servers[volume]);
     }
 

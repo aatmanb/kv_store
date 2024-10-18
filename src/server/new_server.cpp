@@ -257,6 +257,7 @@ namespace key_value_store {
         COUT << "Successor has failed. Reconfiguring...\n";
         std::string new_successor = request->newsuccessor();
         bool was_tail = request->wastail();
+        assert(!was_tail);
         ack_thread.pause();
         commit_thread.pause();
         if (was_tail) {
@@ -324,7 +325,14 @@ namespace key_value_store {
         tail_stub = kv_store::NewStub(grpc::CreateChannel(tail_addr, grpc::InsecureChannelCredentials()));
 
         // Close connection to database so that new tail can open it (SQLite allows only one process to connect to a given db)
-        db_utils->close();
+        // db_utils->close();
+        // Sync db in current node with db in new node
+        grpc::ClientContext ctx;
+        empty empty_resp;
+        std::unique_ptr<grpc::ClientWriter<dbEntry>> writer {tail_stub->syncDB(&ctx, &empty_resp)};
+        db_utils->write_all_rows(writer);
+        writer->WritesDone();
+        writer->Finish();
         
         // Resume threads
         commit_thread.start();
@@ -368,7 +376,7 @@ namespace key_value_store {
 
             is_tail.store(true);
             // Tail should hold connection to database
-            db_utils->open();
+            // db_utils->open();
             commit_sent_updates();
             resp_thread.start();
         } else {
@@ -431,6 +439,9 @@ namespace key_value_store {
              * - Thread 1: Write to database/hashmap, append to to_send queue
              * - Thread 2: Forward commit from to_send queue, append to sent queue
              */
+            // auto put_req = req.rpc_putReq();
+            // Write into own db
+            db_utils->put_value(req.key.c_str(), req.value.c_str());
 	        ClientContext _context;
             fwdPutReq _req = req.rpc_fwdPutReq();
             empty _resp;
@@ -523,5 +534,20 @@ namespace key_value_store {
 
     void kv_storeImpl2::printConfig() {
         COUT << "addr: " << addr << " head_addr: " << head_addr << " tail_addr: " << tail_addr << " prev_addr: " << prev_addr << " next_addr: " << next_addr << std::endl;
+    }
+
+    grpc::Status kv_storeImpl2::syncDB(grpc::ServerContext *context, grpc::ServerReader<dbEntry>* reader, empty *response) {
+        dbEntry entry;
+        COUT << "Starting db sync with current tail\n";
+        auto start_time = std::chrono::system_clock::now();
+
+        while (reader->Read(&entry)) {
+            db_utils->put_value(entry.key().c_str(), entry.value().c_str());
+        }
+
+        auto end_time = std::chrono::system_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time-start_time);
+        COUT << "DB sync took: " << duration.count() << "s\n";
+        return grpc::Status::OK;
     }
 }
