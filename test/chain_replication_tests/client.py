@@ -8,6 +8,7 @@ import crash_consistency
 import correctness
 import performance_test
 import sanity
+import availability
 
 
 if __name__ == "__main__":
@@ -18,7 +19,7 @@ if __name__ == "__main__":
     parser.add_argument('--config-file', type=str, default='chain_config.txt', help='chain configuration file')
     parser.add_argument('--real-fname', type=str, default='real')
     parser.add_argument('--fake-fname', type=str, default='fake')
-    parser.add_argument('--test-type', type=str, default='sanity', help='sanity, correctness, crash_consistency, perf')
+    parser.add_argument('--test-type', type=str, default='sanity', help='sanity, correctness, crash_consistency, perf, kill')
     parser.add_argument('--top-dir', type=str, default='', help='path to top dir')
     parser.add_argument('--log-dir', type=str, default='out/', help='path to log dir')
     parser.add_argument('--num-keys', type=int, default=5, help='number of gets to put and get in sanity test')
@@ -73,6 +74,9 @@ if __name__ == "__main__":
             # Populate DB
             db_keys, overwritten_keys = crash_consistency.populateDB(config_file, args.real_fname, crash_consistency_test)
             correctness.correctnessTest(config_file, args.fake_fname, db_keys, overwritten_keys)
+        elif (test_type == 'availability'):
+            db_keys, overwritten_keys = crash_consistency.populateDB(config_file, args.real_fname, crash_consistency_test)
+            availability.run_get_queries(config_file, db_keys, client_id)
         else:
             raise ValueError(f"Invalid test type {test_type}")
     except Exception as e:
