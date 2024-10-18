@@ -113,13 +113,13 @@ client::get(std::string key, std::string &value) {
     int num_retry = 0;
 
     while (num_retry < req_retry_limit) {
-        std::cout << "REtry: " << num_retry << "\n";
+        //std::cout << "REtry: " << num_retry << "\n";
         // Submit query
         std::unique_ptr<kv_store::Stub>& stub_ = getStub(key, num_retry);
         num_retry++;
         if (!stub_) {
             std::cout << "nullptr\n";
-        }
+        }        
         auto status = stub_->get(&context, request, &response);
         if (!status.ok()) continue;
 
@@ -197,14 +197,18 @@ client::put(std::string key, std::string value, std::string &old_value) {
     if (status.ok()) {
         // TODO: resp_retry_limit
         //std::cout << "waiting for server to respond: " << std::endl;
-        while (!rcvd_resp.load()) {
-             std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-        rcvd_resp.store(false);
-        //std::cout << "response server passed the value to client: " << this->value << std::endl;
+        std::unique_lock<std::mutex> lock(lock_for_rcvd_resp);
+        auto no_timeout = condVar.wait_for(lock, std::chrono::seconds(1), [this]{ return rcvd_resp.load(); });
+
+        if (no_timeout) {
+            rcvd_resp.store(false);
+            //std::cout << "response server passed the value to client: " << this->value << std::endl;
             old_value = this->value;
             return this->status;
+        }
     }
+    
+    // We reach here when there all retries failed or the server didn't return a value within timeout
     std::cerr << __FILE__ << "[" << __LINE__ << "]" << status.error_message() << std::endl;
     return -1;
 }
