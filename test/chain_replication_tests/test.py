@@ -167,6 +167,12 @@ def startClients(args):
         cmd += ' ' + f'--top-dir={args.top_dir}'
         cmd += ' ' + f'--log-dir={args.log_dir}'
         
+        if (args.vk_ratio != 0):  
+            cmd += ' ' + f'--vk_ratio={args.vk_ratio}'
+
+        if (args.skew):
+            cmd += ' ' + f'--skew'
+
         print(f"Starting client {client_id}")
         print(cmd)
         log_file = log_dir + f'client_{client_id}.log'
@@ -212,6 +218,8 @@ if __name__ == "__main__":
     parser.add_argument('--log-dir', type=str, default='out/', help='path to log dir')
     parser.add_argument('--num-clients', type=int, default=1, help='number of clients')
     parser.add_argument('--master-port', type=str, default='50000', help='master port')
+    parser.add_argument('--skew', action='store_true')
+    parser.add_argument('--vk_ratio', type=int, default=0, help='ratio of value to key lenght')
 
     parser.add_argument('--only-clients', action='store_true')
     parser.add_argument('--only-service', action='store_true')
@@ -238,7 +246,7 @@ if __name__ == "__main__":
             print(f"An unexpected exception occured: {e}")
             terminateTest()
             
-        time.sleep(10)
+        time.sleep(30)
 
     if (not args.only_service):
         try:

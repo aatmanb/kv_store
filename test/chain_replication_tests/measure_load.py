@@ -4,8 +4,8 @@ import time
 import psutil
 
 def track_resource_usage(pids, filename=None):
-    DURATION = 20
-    SNAPSHOT_DURATION = 2
+    DURATION = 15*60
+    SNAPSHOT_DURATION = 1
     start = time.time()
     times = np.array([])
     cpu_variances = np.array([], dtype=np.float64)
