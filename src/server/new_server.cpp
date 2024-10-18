@@ -19,6 +19,11 @@ using grpc::ServerContext;
 using grpc::Status;
 
 namespace key_value_store {
+    // template<typename RequestType, typename ResponseType>
+    // grpc::Status invoke_rpc(std::) {
+
+    // }
+
     void runServer(std::string &master_addr, std::string &local_addr) {
         kv_storeImpl2 service(master_addr, local_addr);
         
@@ -56,10 +61,7 @@ namespace key_value_store {
             throw new std::runtime_error(status.error_message());
         }
 
-        db_name = response.db_path().c_str();
-        db_utils = std::move(std::make_unique<DatabaseUtils>(db_name));
-        db_utils->open();
-
+        // db_name = response.db_path().c_str();
         prev_addr = response.pred_addr();
         head_addr = response.head_addr();
 
@@ -91,6 +93,10 @@ namespace key_value_store {
             // Manager address is empty
             throw new std::runtime_error("No manager address provided");
         }
+        // Open connection to database
+        std::string db_name = std::string("db_") + addr;
+        db_utils = std::move(std::make_unique<DatabaseUtils>(db_name.c_str()));
+        db_utils->open();
     }
 
     kv_storeImpl2::~kv_storeImpl2() {
@@ -102,7 +108,7 @@ namespace key_value_store {
     }
 
     grpc::Status kv_storeImpl2::get(ServerContext* context, const getReq* request, reqStatus* response) {
-        //COUT << addr <<  " GET CALLED!!" << std::endl;
+        COUT << addr <<  " GET CALLED!!" << std::endl;
         Request req = Request(*request);
         try {
             get_thread.post(std::bind(&kv_storeImpl2::get_process, this, req));
@@ -119,7 +125,7 @@ namespace key_value_store {
         if (is_tail.load() || !uncommitted_updates_per_key[req.key]) {
             resp_thread.post(std::bind(&kv_storeImpl2::serveRequest, this, req));
         } else {
-	        //COUT << "forwarding to tail: " << tail_addr << std::endl;
+	        COUT << "forwarding to tail: " << tail_addr << std::endl;
             // Forward to tail
             ClientContext _context;
             fwdGetReq _req = req.rpc_fwdGetReq();
@@ -153,6 +159,7 @@ namespace key_value_store {
             manager_stub->notifyFailure(&ctx, req, &response);
             db_utils->close();
         }
+        COUT << "exiting...\n";
         exit(-1);
         return grpc::Status::OK;
     }
@@ -408,6 +415,7 @@ namespace key_value_store {
 
     void kv_storeImpl2::process_lost_updates(const putReq& last_req) {
         ThreadSafeQueue<Request> tmp_queue;
+        std::cout << "here\n";
         bool found = false;
         while (true) {
             auto val = sent_queue.tryDequeue();
@@ -416,6 +424,7 @@ namespace key_value_store {
             }
             
             const putReq req = val.value().rpc_putReq();
+            std::cout << "here\n";
             if (found) {
                 ClientContext context;
                 empty _resp;
@@ -443,10 +452,25 @@ namespace key_value_store {
             
             // Write into own db
             db_utils->put_value(req.key.c_str(), req.value.c_str());
+            if (next_addr.substr(next_addr.size() - 5) == "50030") {
+                std::cout << "Calling die\n";
+                ClientContext _context;
+                failCommand req; req.set_clean(true);
+                empty resp;
+                auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+                _context.set_deadline(deadline);
+                next_stub->fail(&_context, req, &resp);
+                COUT << "Called die\n";
+            }
 	        ClientContext _context;
             fwdPutReq _req = req.rpc_fwdPutReq();
             empty _resp;
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+            _context.set_deadline(deadline);
             next_stub->commit(&_context, _req, &_resp);
+            if (next_addr.substr(next_addr.size() - 5) == "50030") {
+                COUT << "Commit RPC called\n";
+            }
         }
         else {
             resp_thread.post(std::bind(&kv_storeImpl2::serveRequest, this, req));
@@ -483,16 +507,17 @@ namespace key_value_store {
 
     void kv_storeImpl2::serveRequest(Request &req) {
         std::string client_addr = req.addr;
-        //COUT << "client_addr: " << client_addr << std::endl;
+        COUT << "client_addr: " << client_addr << std::endl;
         client_stub = KVResponse::NewStub(grpc::CreateChannel(client_addr, grpc::InsecureChannelCredentials()));
         ClientContext _context;
         respStatus _resp;
 
         if (req.type == request_t::GET) {
-            //COUT << "Processing client get() request" << std::endl;
+            COUT << "Processing client get() request" << std::endl;
             getResp _req;
 
             auto value = db_utils->get_value(req.key.c_str());
+            COUT << "Value: " << value << "\n";
             _req.set_value(value);
             if (value == "") {
                 _req.set_status(KV_GET_FAILED);
@@ -501,7 +526,10 @@ namespace key_value_store {
             }
             
             // Send response to client
+            // std::chrono::system_clock::time_point deadline =
+            //     std::chrono::system_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
             Status status = client_stub->sendGetResp(&_context, _req, &_resp);
+            // _context.set_deadline(deadline)
             //COUT << "Sent get response to client" << std::endl;
         } else if (req.type == request_t::PUT) {
             //COUT << "Processing client put() request" << std::endl;
@@ -549,7 +577,7 @@ namespace key_value_store {
 
         auto end_time = std::chrono::system_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time-start_time);
-        COUT << "DB sync took: " << duration.count() << "s\n";
+        COUT << "DB sync took: " << duration.count() << "ms\n";
         return grpc::Status::OK;
     }
 }
