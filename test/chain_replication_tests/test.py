@@ -210,7 +210,6 @@ def checkAndMakeDir(path):
         print(f"Directory '{path}' does not exist. Creating it.")
         os.makedirs(path)
 
-<<<<<<< HEAD
 def startLoadMeasurement(log_dir, master_processes, server_processes):
     cmd = 'python3 measure_load.py'
     pid_str = ''
@@ -226,7 +225,7 @@ def startLoadMeasurement(log_dir, master_processes, server_processes):
     global load_measurement_processes 
     process = subprocess.Popen(cmd, shell=True)
     load_measurement_processes.append(process)
-=======
+
 def startKiller(config_file, clean=1, strategy='random'):
     killer_process_cmd = f'python3 kill_servers.py --config-file={config_file} --clean={clean} --strategy={strategy}'
     log_file = log_dir + f'killer.log'
@@ -234,7 +233,6 @@ def startKiller(config_file, clean=1, strategy='random'):
     with open(log_file, 'w') as f:
         process = subprocess.Popen(killer_process_cmd, shell=True, stdout=f, stderr=f, preexec_fn=os.setsid)
         return process
->>>>>>> 4c4a66c (Add availability test)
 
 if __name__ == "__main__":
 
