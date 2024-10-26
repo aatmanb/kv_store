@@ -19,6 +19,8 @@ using grpc::ServerContext;
 using grpc::Status;
 
 namespace key_value_store {
+    static constexpr int CONNECTION_TIMEOUT = 500;
+
     void runServer(int id, std::string &master_addr, std::string &local_addr) {
         kv_storeImpl2 service(id, master_addr, local_addr);
         
@@ -49,6 +51,8 @@ namespace key_value_store {
         req.set_node(addr);
         notifyRestartResponse response;
         COUT << "Notifying manager about restart...\n";
+        auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+        ctx.set_deadline(deadline);
         auto status = manager_stub->notifyRestart(&ctx, req, &response);
         COUT << "Manager has been notified\n";
 
@@ -138,6 +142,8 @@ namespace key_value_store {
             ClientContext _context;
             fwdGetReq _req = req.rpc_fwdGetReq();
             empty _resp;
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+            _context.set_deadline(deadline);
             Status status = tail_stub->fwdGet(&_context, _req, &_resp);
         }
     }
@@ -164,6 +170,8 @@ namespace key_value_store {
             notifyFailureReq req;
             req.set_failednode(addr);
             empty response;
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+            ctx.set_deadline(deadline);
             manager_stub->notifyFailure(&ctx, req, &response);
             db_utils->close();
         }
@@ -192,6 +200,8 @@ namespace key_value_store {
 	        //original_req->set_value (req.value);
 	        //meta->set_addr(req.addr);
 	        empty _resp;
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+            _context.set_deadline(deadline);
 	        Status status = head_stub->fwdPut(&_context, _req, &_resp);
         }
     }
@@ -261,6 +271,8 @@ namespace key_value_store {
                 req.set_allocated_lastputreq(&last_put_req);
             }
             empty resp;
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+            ctx.set_deadline(deadline);
             prev_stub->notifySuccessorFailure(&ctx, req, &resp);
         }
         COUT << "Reconfiguration done...\n";
@@ -426,6 +438,8 @@ namespace key_value_store {
                 ClientContext context;
                 empty _resp;
                 auto fwd_put_req = Request(req).rpc_fwdPutReq();
+                auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+                _context.set_deadline(deadline);
                 next_stub->commit(&context, fwd_put_req, &_resp);
             }
             if (Request(last_req).identicalRequests(req)) {
@@ -450,6 +464,8 @@ namespace key_value_store {
 	        ClientContext _context;
             fwdPutReq _req = req.rpc_fwdPutReq();
             empty _resp;
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+            _context.set_deadline(deadline);
             next_stub->commit(&_context, _req, &_resp);
         }
         else {
@@ -470,6 +486,8 @@ namespace key_value_store {
 	        ClientContext _context;
             putAck _req = curr_req.rpc_putAck();
             empty _resp;
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+            _context.set_deadline(deadline);
             prev_stub->ack(&_context, _req, &_resp); 
         }
         else {
@@ -503,6 +521,8 @@ namespace key_value_store {
             }
             
             // Send response to client
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+            _context.set_deadline(deadline);
             Status status = client_stub->sendGetResp(&_context, _req, &_resp);
             // Send ack to predecessor
             //COUT << "Sent get response to client" << std::endl;
@@ -522,6 +542,8 @@ namespace key_value_store {
             }
 
             // Send response to client
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+            _context.set_deadline(deadline);
             Status status = client_stub->sendPutResp(&_context, _req, &_resp);
             // Send ack to predecessor
             ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, req));
