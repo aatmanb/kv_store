@@ -21,12 +21,12 @@ using grpc::Channel;
 using grpc::ClientContext;
 using grpc::Status;
 
-client::client(int _id, int timeout, const std::string& config_file) : 
+client::client(int _id, int timeout, const std::string& config_file, const std::string& log_dir) : 
     id(_id), 
     timeout(timeout)
 {
     std::cout << "Parsing Chain Config file" << std::endl;
-    std::string log_file_name = "out/client_" + std::to_string(id) + ".log";
+    std::string log_file_name = log_dir + "spdlog_client_" + std::to_string(id) + ".log";
     
     // Logging example
     spdlog::flush_every(std::chrono::milliseconds(1));
@@ -47,12 +47,11 @@ client::client(int _id, int timeout, const std::string& config_file) :
     std::cout << "Establishing gRPC channels and setting up stubs" << std::endl;
     // establish a channel corresponding to each stub
     for (int i=0; i<num_partitions; i++) {
-        std::string server_name = "localhost:" + partitions[i].getServer();
-        std::cout << "Establishing channel with server " << server_name << std::endl;
-        std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(server_name, grpc::InsecureChannelCredentials());
-        //std::unique_ptr<kv_store::Stub> stub_(kv_store::NewStub(channel));
-        std::cout << "Creating stub" << std::endl;
-        stubs.push_back(std::move(kv_store::NewStub(channel)));
+        std::string addr = "localhost:" + partitions[i].getServer();
+        SPDLOG_LOGGER_INFO(logger , "establishing channel with server {}" , addr);
+        std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(addr, grpc::InsecureChannelCredentials());
+        SPDLOG_LOGGER_TRACE(logger , "creating stub");
+        server_configs.push_back(new ServerConfig(addr, kv_store::NewStub(channel)));
     }
      
     std::cout << "Starting response server" << std::endl;
@@ -108,13 +107,10 @@ client::start_response_server(std::unique_ptr<grpc::Server>& server, std::string
 
 int
 client::get(std::string key, std::string &value) {
-    //std::string key_str = charArrayToString(key);
-    //std::cout << "[client " << id << "] " << "get() called with key: " << key << std::endl;
     getReq request;
     request.set_key(key);
     auto *_meta = request.mutable_meta();
     _meta->set_addr("localhost:"+resp_server_addr);
-    // request.set_id(id);
 
     reqStatus response;
 
@@ -122,59 +118,44 @@ client::get(std::string key, std::string &value) {
     auto deadline = std::chrono::system_clock::now() + std::chrono::seconds(timeout);
     context.set_deadline(deadline);
     
-    // std::unique_ptr<kv_store::Stub>& stub_ = getStub(key);
-    // Status status = stub_->get(&context, request, &response);
-    int num_retry = 0;
+    int num_retry_per_server, num_retry_per_key;
+    ServerConfig *server;
 
-    while (num_retry < req_retry_limit) {
-        //std::cout << "REtry: " << num_retry << "\n";
-        // Submit query
-        std::unique_ptr<kv_store::Stub>& stub_ = getStub(key, num_retry);
-        num_retry++;
-        if (!stub_) {
-            std::cout << "nullptr\n";
-        }        
-        auto status = stub_->get(&context, request, &response);
-        if (!status.ok()) continue;
+    num_retry_per_key = 0;
+    while (num_retry_per_key < req_retry_limit_per_key) {
+        // Always try a new server for better load distribution
+        server = getStub(key, true);
+        num_retry_per_key++;
+        SPDLOG_LOGGER_INFO(logger, "Connecting to server {} for key {}", server->addr, key);
+        num_retry_per_server = 0;
+        while (num_retry_per_server < req_retry_limit_per_server) {
+            // Submit query
+            num_retry_per_server++;
+            auto status = server->stub->get(&context, request, &response);
+            if (!status.ok()) {
+                SPDLOG_LOGGER_WARN(logger , "Couldn't send request. RPC timeout {}s", timeout);
+                continue;
+            }
 
-        // Wait for response
-        std::unique_lock<std::mutex> lock(lock_for_rcvd_resp);
-        condVar.wait_for(lock, std::chrono::milliseconds(500), [this]{ return rcvd_resp.load(); });
-        //std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        //if (!rcvd_resp.load()) {
-            // Resubmit the query
-            //continue;
-        //}
-        rcvd_resp.store(false);
-        //std::cout << "response server passed the value to client: " << this->value << std::endl;
-        value = this->value;
-        return this->status;
+            SPDLOG_LOGGER_DEBUG(logger , "Sent get() for key {}", key);
+
+            // Wait for response
+            std::unique_lock<std::mutex> lock(lock_for_rcvd_resp);
+            condVar.wait_for(lock, std::chrono::milliseconds(500), [this]{ return rcvd_resp.load(); });
+            if (rcvd_resp.load()) {
+                rcvd_resp.store(false);
+                value = this->value;
+                return this->status;
+            }
+            else {
+                SPDLOG_LOGGER_WARN(logger, "Response timeout {}ms", 500);
+            }
+        }
+        SPDLOG_LOGGER_WARN(logger , "Retries limit reached for server {}", server->addr);
     }
 
-    // while (!status.ok() && (req_retry>0)) {
-    //     // Send the request to a another server because previous rpc failed
-    //     req_retry--;
-    //     std::unique_ptr<kv_store::Stub>& stub_ = getStub(key, true);
-    //     status = stub_->get(&context, request, &response);
-    // }
-
-    // if (status.ok()) {
-    //     // TODO: resp_retry_limit
-    //     std::cout << "waiting for server to respond: " << std::endl;
-    //     while(!(rcvd_resp.load())) {
-    //         //std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    //     }
-    //     rcvd_resp.store(false);
-    //     std::cout << "response server passed the value to client: " << this->value << std::endl;
-    //     value = this->value;
-    //     return this->status;
-    // }
-
-    // We will reach here if req_retry_limit was reached
-    // std::cerr << __FILE__ << "[" << __LINE__ << "]" << status.error_message() << std::endl;
-    std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Retries exhausted" << std::endl;
+    SPDLOG_LOGGER_CRITICAL(logger , "Retries limit reached for all servers in config. We should never see this!!");
     return -1;
-        
 }
 
 int
@@ -197,69 +178,83 @@ client::put(std::string key, std::string value, std::string &old_value) {
     auto deadline = std::chrono::system_clock::now() + std::chrono::seconds(timeout);
     context.set_deadline(deadline);
 
-    std::unique_ptr<kv_store::Stub>& stub_ = getStub(key);
-    Status status = stub_->put(&context, request, &response);
-    int req_retry = req_retry_limit;
+    int num_retry_per_server, num_retry_per_key;
+    ServerConfig *server;
 
-    while (!status.ok() && (req_retry>0)) {
-        // Send the request to a another server because previous rpc failed
-        req_retry--;
-        //std::unique_ptr<kv_store::Stub>& stub_ = getStub(key, true);
-        status = stub_->put(&context, request, &response);
-    }
+    num_retry_per_key = 0;
+    while (num_retry_per_key < req_retry_limit_per_key) {
+        // Always try a new server for better load distribution
+        server = getStub(key, true);
+        num_retry_per_key++;
+        SPDLOG_LOGGER_INFO(logger, "Connecting to server {} for key {}", server->addr, key);
+        num_retry_per_server = 0;
+        while (num_retry_per_server < req_retry_limit_per_server) {
+            // Submit query
+            num_retry_per_server++;
+            auto status = server->stub->put(&context, request, &response);
+            if (!status.ok()) {
+                SPDLOG_LOGGER_WARN(logger , "Couldn't send request. RPC timeout {}s", timeout);
+                continue;
+            }
 
-    if (status.ok()) {
-        // TODO: resp_retry_limit
-        //std::cout << "waiting for server to respond: " << std::endl;
-        std::unique_lock<std::mutex> lock(lock_for_rcvd_resp);
-        auto no_timeout = condVar.wait_for(lock, std::chrono::seconds(1), [this]{ return rcvd_resp.load(); });
+            SPDLOG_LOGGER_DEBUG(logger , "Sent put() for key {}", key);
 
-        if (no_timeout) {
-            rcvd_resp.store(false);
-            //std::cout << "response server passed the value to client: " << this->value << std::endl;
-            old_value = this->value;
-            return this->status;
+            // Wait for response
+            std::unique_lock<std::mutex> lock(lock_for_rcvd_resp);
+            condVar.wait_for(lock, std::chrono::milliseconds(500), [this]{ return rcvd_resp.load(); });
+            if (rcvd_resp.load()) {
+                rcvd_resp.store(false);
+                value = this->value;
+                return this->status;
+            }
+            else {
+                SPDLOG_LOGGER_WARN(logger, "Response timeout {}ms", 500);
+            }
         }
+        SPDLOG_LOGGER_WARN(logger , "Retries limit reached for server {}", server->addr);
     }
-    
-    // We reach here when there all retries failed or the server didn't return a value within timeout
-    std::cerr << __FILE__ << "[" << __LINE__ << "]" << status.error_message() << std::endl;
+
+    SPDLOG_LOGGER_CRITICAL(logger , "Retries limit reached for all servers in config. We should never see this!!");
     return -1;
 }
 
-std::unique_ptr<kv_store::Stub> createStub(int port) {
-    std::string server_name = "localhost:" + std::to_string(port);
-    std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(server_name, grpc::InsecureChannelCredentials());
-    return kv_store::NewStub(channel);
+ServerConfig* 
+client::createStub(int port) {
+    std::string addr = "localhost:" + std::to_string(port);
+    std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(addr, grpc::InsecureChannelCredentials());
+    return new ServerConfig(addr, kv_store::NewStub(channel));
 }
 
-std::unique_ptr<kv_store::Stub> createStub(const std::string& server_name) {
-    std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(server_name, grpc::InsecureChannelCredentials());
-    return kv_store::NewStub(channel);
+ServerConfig*
+client::createStub(const std::string& addr) {
+    std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(addr, grpc::InsecureChannelCredentials());
+    return new ServerConfig(addr, kv_store::NewStub(channel));
 }
 
 int client::kill(std::string server, int clean) {
-    auto server_stub = createStub(server);
-    grpc::ClientContext ctx;
-    failCommand req;
-    req.set_clean(clean);
-    empty response;
-    auto status = server_stub->fail(&ctx, req, &response);
-    return status.ok() ? 0 : -1;
+    //auto server_stub = createStub(server);
+    //grpc::ClientContext ctx;
+    //failCommand req;
+    //req.set_clean(clean);
+    //empty response;
+    //auto status = server_stub->fail(&ctx, req, &response);
+    //return status.ok() ? 0 : -1;
+    return -1;
 }
 
-std::unique_ptr<kv_store::Stub>& 
+ServerConfig*
 client::getStub(const std::string& key, bool retry) {
     CustomHash hash;
     int partition_id = hash(key) % num_partitions;
     
     if (retry) {
+        delete server_configs[partition_id];
         PartitionConfig partition = partitions[partition_id];
-        std::unique_ptr<kv_store::Stub> stub_ = createStub(std::stoi(partition.getServer()));
-        stubs[partition_id] = std::move(stub_);
+        ServerConfig *config = createStub(std::stoi(partition.getServer()));
+        server_configs[partition_id] = config;
     }
 
-    return stubs[partition_id];
+    return server_configs[partition_id];
 } 
 
 

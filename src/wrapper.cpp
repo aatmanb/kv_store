@@ -19,7 +19,7 @@ std::tuple<int, std::string> put(std::string &key, std::string &value) {
 PYBIND11_MODULE(libkv739_py, m) {
     m.doc() = "Python extension module for key-value store";
 
-    m.def("init", &kv739_init, py::arg("id"), py::arg("config_file"), py::call_guard<py::gil_scoped_release>());
+    m.def("init", &kv739_init, py::arg("id"), py::arg("config_file"), py::arg("log_dir"), py::call_guard<py::gil_scoped_release>());
 
     m.def("shutdown", &kv739_shutdown, py::call_guard<py::gil_scoped_release>());
 

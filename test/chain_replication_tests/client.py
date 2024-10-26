@@ -56,7 +56,7 @@ if __name__ == "__main__":
     values = []
     try:
         if (test_type == 'sanity'):
-            sanity.runSanityTest(config_file, client_id, args.num_keys)
+            sanity.runSanityTest(config_file, client_id, args.num_keys, log_dir)
 
         elif (test_type == 'perf'):
             num_keys = 600

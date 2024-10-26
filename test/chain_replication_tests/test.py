@@ -8,11 +8,6 @@ import shutil
 import random
 import numpy as np
 
-import crash_consistency
-import correctness
-import performance
-import sanity
-
 bin_dir = ''
 db_dir = ''
 log_dir = ''
@@ -44,7 +39,7 @@ def getPartitionConfig(config_file):
     
     return partitions
 
-def getServerCmd(config, head=False, tail=False, head_port='', tail_port='', prev_port='', next_port=''):
+def getServerCmd(config, head, tail, head_port, tail_port, prev_port, next_port, log_dir):
     cmd = bin_dir + 'server'
     server_id = config[0]
     cmd += ' ' + f'--id={server_id}'
@@ -68,22 +63,26 @@ def getServerCmd(config, head=False, tail=False, head_port='', tail_port='', pre
     if next_port:
         cmd += ' ' + f'--next_port={next_port[1]}'
 
+    if log_dir:
+        cmd += ' ' + f'--log_dir={log_dir}'
+
     return cmd
 
-def getServerCmd(config, master_port):
+def getServerCmd(config, master_port, log_dir):
     cmd = bin_dir + 'server'
     server_id = config[0]
     cmd += ' ' + f'--id={server_id}'
     cmd += ' ' + f'--port={config[1]}'
     cmd += ' ' + f'--master_port={master_port}'
+    cmd += ' ' + f'--log_dir={log_dir}'
     
     return cmd
 
-def startServer(config, head=False, tail=False, head_port='', tail_port='', prev_port='', next_port='', master_port=''):
+def startServer(config, head=False, tail=False, head_port='', tail_port='', prev_port='', next_port='', master_port='', log_dir=''):
     if master_port:
-        cmd = getServerCmd(config, master_port)
+        cmd = getServerCmd(config, master_port, log_dir)
     else:
-        cmd = getServerCmd(config, head, tail, head_port, tail_port, prev_port, next_port)
+        cmd = getServerCmd(config, head, tail, head_port, tail_port, prev_port, next_port, log_dir)
     print(f"Starting server {config[0]}")
     print(cmd)
     log_file = log_dir + f'server_{config[0]}.log'
@@ -97,21 +96,21 @@ def startServer(config, head=False, tail=False, head_port='', tail_port='', prev
     #time.sleep(1)
 
 
-def createChain(server_list, master_port=''):
+def createChain(server_list, master_port='', log_dir=''):
     if (len(server_list) == 1):
-        startServer(server_list[0], head=True, tail=True, master_port=master_port)
+        startServer(server_list[0], head=True, tail=True, master_port=master_port, log_dir=log_dir)
         return
 
     head = server_list[0]
     for i in range(len(server_list)):
         if (i == 0):
-            startServer(server_list[i], head=True, tail_port=server_list[-1], next_port=server_list[i+1], master_port=master_port)
+            startServer(server_list[i], head=True, tail_port=server_list[-1], next_port=server_list[i+1], master_port=master_port, log_dir=log_dir)
         elif (i == len(server_list)-1):
-            startServer(server_list[i], tail=True, head_port=server_list[0], prev_port=server_list[i-1], master_port=master_port)
+            startServer(server_list[i], tail=True, head_port=server_list[0], prev_port=server_list[i-1], master_port=master_port, log_dir=log_dir)
         else:
-            startServer(server_list[i], head_port=server_list[0], tail_port=server_list[-1], prev_port=server_list[i-1], next_port=server_list[i+1], master_port=master_port)
+            startServer(server_list[i], head_port=server_list[0], tail_port=server_list[-1], prev_port=server_list[i-1], next_port=server_list[i+1], master_port=master_port, log_dir=log_dir)
 
-def createService(config_file, master_port=''):
+def createService(config_file, master_port='', log_dir=''):
     #TODO: start the manager before creating chains
 
     if master_port:
@@ -133,7 +132,7 @@ def createService(config_file, master_port=''):
 
     partitions = getPartitionConfig(config_file)
     for _, servers in partitions.items():
-        createChain(servers, master_port)
+        createChain(servers, master_port, log_dir)
 
 def terminateProcess(process):
     pid = process.pid
@@ -296,7 +295,7 @@ if __name__ == "__main__":
 
     if (not args.only_clients):
         try:
-            createService(config_file, args.master_port)
+            createService(config_file, args.master_port, log_dir)
         except Exception as e:
             print(f"An unexpected exception occured: {e}")
             terminateTest()

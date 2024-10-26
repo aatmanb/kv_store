@@ -21,8 +21,8 @@ using grpc::Status;
 namespace key_value_store {
     static constexpr int CONNECTION_TIMEOUT = 500;
 
-    void runServer(int id, std::string &master_addr, std::string &local_addr) {
-        kv_storeImpl2 service(id, master_addr, local_addr);
+    void runServer(int id, std::string &master_addr, std::string &local_addr, std::string &log_dir) {
+        kv_storeImpl2 service(id, master_addr, local_addr, log_dir);
         
         grpc::EnableDefaultHealthCheckService(true);
         grpc::reflection::InitProtoReflectionServerBuilderPlugin();
@@ -84,7 +84,7 @@ namespace key_value_store {
         resp_thread.start();
     }
 
-    kv_storeImpl2::kv_storeImpl2(int _id, std::string &master_addr, std::string &addr):
+    kv_storeImpl2::kv_storeImpl2(int _id, std::string &master_addr, std::string &addr, std::string &log_dir):
         id(_id),
         manager_addr(master_addr),
         addr(addr) {
@@ -98,7 +98,7 @@ namespace key_value_store {
             throw new std::runtime_error("No manager address provided");
         }
         
-        std::string log_file_name = "out/server_" + std::to_string(id) + ".log";
+        std::string log_file_name = log_dir + "spdlog_server_" + std::to_string(id) + ".log";
         
         // Logging example
         spdlog::flush_every(std::chrono::milliseconds(1));
@@ -439,7 +439,7 @@ namespace key_value_store {
                 empty _resp;
                 auto fwd_put_req = Request(req).rpc_fwdPutReq();
                 auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
-                _context.set_deadline(deadline);
+                context.set_deadline(deadline);
                 next_stub->commit(&context, fwd_put_req, &_resp);
             }
             if (Request(last_req).identicalRequests(req)) {

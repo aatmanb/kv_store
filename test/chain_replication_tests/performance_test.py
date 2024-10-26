@@ -53,7 +53,7 @@ def populateDB(config_file, client_id, num_keys, vk_ratio):
     print("Populating DB Completed.........")
     return keys, values
     
-def performanceTest(config_file, vk_ratio, num_keys, write_percentage = 10, skew = True, keys =[], values = []):
+def performanceTest(config_file, vk_ratio, num_keys, write_percentage = 10, skew = False, keys =[], values = []):
     print ("\nRunning Performance Tests...........\n")
     percentiles = [50, 70, 90, 99]
 

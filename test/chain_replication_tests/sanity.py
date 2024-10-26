@@ -5,12 +5,12 @@ import sys
 sys.path.append('../../bin/')
 import libkv739_py as kv
 
-def runGetTest(config_file, id, num_keys):
+def runGetTest(config_file, id, num_keys, log_dir):
     print("Running sanity GetTest")
     key = ""
     value = ""
     total_duration = 0
-    kv.init(id, config_file)
+    kv.init(id, config_file, log_dir)
     for i in range(num_keys):
         key = "test_key_" + str(i)
         start = time.time_ns()
@@ -28,13 +28,13 @@ def runGetTest(config_file, id, num_keys):
     kv.shutdown()
     print("GetTest completed")
 
-def runPutTest(config_file, id, num_keys):
+def runPutTest(config_file, id, num_keys, log_dir):
     print("Running sanity PutTest")
     key = ""
     value = ""
     old_value = ""
     total_duration = 0
-    kv.init(id, config_file)
+    kv.init(id, config_file, log_dir)
     for i in range(num_keys):
         key = "test_key_" + str(i)
         value = "test_value_" + str(i) 
@@ -54,8 +54,8 @@ def runPutTest(config_file, id, num_keys):
     kv.shutdown()
     print("PutTest completed")
 
-def runSanityTest(config_file, id, num_keys):
+def runSanityTest(config_file, id, num_keys, log_dir):
     print("Running sanity tests")
-    runPutTest(config_file, id, num_keys)
-    runGetTest(config_file, id, num_keys)
+    runPutTest(config_file, id, num_keys, log_dir)
+    runGetTest(config_file, id, num_keys, log_dir)
     print("Sanity tests completed")

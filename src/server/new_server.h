@@ -27,11 +27,11 @@
 
 namespace key_value_store {
 
-    void runServer(int id, std::string &master_addr, std::string &local_addr);
+    void runServer(int id, std::string &master_addr, std::string &local_addr, std::string &log_dir);
     
     class kv_storeImpl2 final : public kv_store::Service {
     public:
-        kv_storeImpl2(int _id, std::string &master_addr, std::string &addr); 
+        kv_storeImpl2(int _id, std::string &master_addr, std::string &addr, std::string &log_dir); 
         ~kv_storeImpl2();
 
         /**

@@ -25,9 +25,20 @@
 #include "spdlog/include/spdlog/spdlog.h"
 #include "spdlog/include/spdlog/sinks/basic_file_sink.h"
 
+struct ServerConfig {
+public:
+    std::string addr;
+    std::unique_ptr<kv_store::Stub> stub;
+
+    ServerConfig (std::string _addr, std::unique_ptr<kv_store::Stub> _stub) :
+        addr(_addr),
+        stub(std::move(_stub))
+        {}
+};
+
 class client {
 public:
-    client(int _id, int timeout, const std::string& config_file);
+    client(int _id, int timeout, const std::string& config_file, const std::string& log_dir);
     ~client();
 
     int get(std::string key, std::string &value);
@@ -35,17 +46,23 @@ public:
     int kill(std::string server, int clean);
 
     // std::unique_ptr<kv_store::Stub> createStub(const std::string& port);
-    std::unique_ptr<kv_store::Stub>& getStub(const std::string& key, bool retry=false);
+    ServerConfig* getStub(const std::string& key, bool retry=false);
 
     int id;
 
     int timeout;
 
+    ServerConfig* createStub(int port);
+    ServerConfig* createStub(const std::string& addr);
+
 private:
+
+    // Server
+    std::vector<ServerConfig*> server_configs;
+
     std::string resp_server_addr;
     std::atomic<bool> resp_server_started;
-    std::vector<std::unique_ptr<kv_store::Stub>> stubs;
-    std::atomic<bool> rcvd_resp = false; //notify the main thread that the response server received response
+    std::atomic<bool> rcvd_resp; //notify the main thread that the response server received response
     int status;
     std::string value;
 
@@ -59,8 +76,8 @@ private:
 
     std::unordered_map<std::string, int, CustomHash> key_to_partition;
 
-    const int req_retry_limit = 5;
-    const int resp_retry_limit = 5;
+    const int req_retry_limit_per_server = 5;
+    const int req_retry_limit_per_key = 10;
     
     std::condition_variable condVar;
     std::mutex lock_for_rcvd_resp; 

@@ -5,13 +5,7 @@
 #include <stdexcept>
 #include <cstdlib>
 
-#include "absl/flags/flag.h"
-#include "absl/flags/parse.h"
-
-#include <grpcpp/grpcpp.h>
-#include "kv_store.grpc.pb.h"
 #include "739kv.h"
-#include "client.h"
 
 client *client_instance = nullptr;
 
@@ -49,14 +43,14 @@ bool verifyValue(std::string s) {
     return true;
 }
 
-int kv739_init(int id, const std::string& config_file) {
+int kv739_init(int id, const std::string& config_file, const std::string& log_dir) {
     if (client_instance != nullptr) {
         std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Client already initialized" << std::endl;
         return -1;
     }
 
     try {
-        client_instance = new client(id, timeout, config_file);
+        client_instance = new client(id, timeout, config_file, log_dir);
         return 0;
     }
     catch (const std::exception &e) {
