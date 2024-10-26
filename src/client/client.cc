@@ -25,8 +25,8 @@ client::client(int _id, int timeout, const std::string& config_file, const std::
     id(_id), 
     timeout(timeout)
 {
-    std::cout << "Parsing Chain Config file" << std::endl;
     std::string log_file_name = log_dir + "spdlog_client_" + std::to_string(id) + ".log";
+    COUT << log_file_name << std::endl;
     
     // Logging example
     spdlog::flush_every(std::chrono::milliseconds(1));
@@ -40,10 +40,13 @@ client::client(int _id, int timeout, const std::string& config_file, const std::
     SPDLOG_LOGGER_ERROR(logger , "Some Error message that will be evaluated.. {} ,{}", 1, 3.23);
     SPDLOG_LOGGER_CRITICAL(logger , "Some Critical message that will be evaluated.. {} ,{}", 1, 3.23);
 
+    SPDLOG_LOGGER_INFO(logger , "parsing config file");
     partitions = parseConfigFile(config_file); 
     num_partitions = partitions.size(); 
+    SPDLOG_LOGGER_INFO(logger , "number of partitions: ", num_partitions);
     std::cout << "Number of partitions: " << num_partitions << std::endl;
 
+    SPDLOG_LOGGER_INFO(logger , "Establishing gRPC channels and setting up stubs");
     std::cout << "Establishing gRPC channels and setting up stubs" << std::endl;
     // establish a channel corresponding to each stub
     for (int i=0; i<num_partitions; i++) {
@@ -54,24 +57,23 @@ client::client(int _id, int timeout, const std::string& config_file, const std::
         server_configs.push_back(new ServerConfig(addr, kv_store::NewStub(channel)));
     }
      
+    SPDLOG_LOGGER_INFO(logger , "Starting response server");
     std::cout << "Starting response server" << std::endl;
     // Spawn two threads
     // thread 0: run the server
     // thread 1: continue with client construction
     rcvd_resp.store(false);
     resp_server_started.store(false);
-    server_thread = std::thread(&client::start_response_server, this, std::ref(resp_server), std::ref(resp_server_addr), std::ref(resp_server_started));
+    server_thread = std::thread(&client::start_response_server, this, std::ref(resp_server), std::ref(resp_server_addr), std::ref(resp_server_started), logger);
     while (!resp_server_started.load()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
+    SPDLOG_LOGGER_INFO(logger , "started response server");
     std::cout << "client " << id << " started response server" << std::endl;
 }
 
 client::~client() {
-    // TODO: 
-    // 1. close the response server to tail connection
-    // 2. kill the response server
-    // 3. close the client to CR server conection
+    SPDLOG_LOGGER_INFO(logger , "killing server");
     std::cout << "killing server" << std::endl;
     resp_server->Shutdown();
     if (server_thread.joinable()) {
@@ -80,7 +82,7 @@ client::~client() {
 }
 
 void
-client::start_response_server(std::unique_ptr<grpc::Server>& server, std::string& port, std::atomic<bool>& started) {
+client::start_response_server(std::unique_ptr<grpc::Server>& server, std::string& port, std::atomic<bool>& started, std::shared_ptr<spdlog::logger> logger) {
     std::string addr = "0.0.0.0:0";
     
     grpc::EnableDefaultHealthCheckService(true);
@@ -89,7 +91,7 @@ client::start_response_server(std::unique_ptr<grpc::Server>& server, std::string
     int selected_port;
     // Listen on the given address without any authentication mechanism.
     builder.AddListeningPort(addr, grpc::InsecureServerCredentials(), &selected_port);
-    KVResponseService service(&rcvd_resp, &status, &value, &condVar);
+    KVResponseService service(&rcvd_resp, &status, &value, &condVar, logger);
     // Register "service" as the instance through which we'll communicate with
     // clients. In this case it corresponds to an *synchronous* service.
     builder.RegisterService(&service);
@@ -100,6 +102,7 @@ client::start_response_server(std::unique_ptr<grpc::Server>& server, std::string
     port = std::to_string(selected_port); 
     std::string selected_addr = "0.0.0.0:" + std::to_string(selected_port);
     
+    SPDLOG_LOGGER_INFO(logger , "response server listening on addr ", selected_addr);
     std::cout << "response server listening on addr " << selected_addr << std::endl;
     started.store(true);
     server->Wait();
@@ -258,17 +261,17 @@ client::getStub(const std::string& key, bool retry) {
 } 
 
 
-KVResponseService::KVResponseService(std::atomic<bool> *_rcvd_resp, int *_status, std::string *_value, 
-                                     std::condition_variable *_condVar):
+KVResponseService::KVResponseService(std::atomic<bool> *_rcvd_resp, int *_status, std::string *_value, std::condition_variable *_condVar, std::shared_ptr<spdlog::logger> _logger):
     rcvd_resp(_rcvd_resp),
     status(_status),
     value(_value),
-    condVar(_condVar)
+    condVar(_condVar),
+    logger(_logger)
 {}
 
 grpc::Status
 KVResponseService::sendGetResp(grpc::ServerContext* context, const getResp* get_resp, respStatus* resp_status) {
-    //std::cout << "received response for get" << std::endl;
+    SPDLOG_LOGGER_DEBUG(logger, "response server received get response");
     *status = get_resp->status();
     *value = get_resp->value();
 
@@ -281,8 +284,7 @@ KVResponseService::sendGetResp(grpc::ServerContext* context, const getResp* get_
 
 grpc::Status
 KVResponseService::sendPutResp(grpc::ServerContext* context, const putResp* put_resp, respStatus* resp_status) {
-    // TODO
-    //std::cout << "received response for put" << std::endl;
+    SPDLOG_LOGGER_DEBUG(logger, "response server received put response");
     *status = put_resp->status();
     *value = put_resp->old_value();
 

@@ -67,7 +67,7 @@ private:
     std::string value;
 
     std::unique_ptr<grpc::Server> resp_server = nullptr;
-    void start_response_server(std::unique_ptr<grpc::Server>& server, std::string& port, std::atomic<bool>& started);
+    void start_response_server(std::unique_ptr<grpc::Server>& server, std::string& port, std::atomic<bool>& started, std::shared_ptr<spdlog::logger> logger);
 
     std::thread server_thread;
 
@@ -87,7 +87,7 @@ private:
 
 class KVResponseService final : public KVResponse::Service {
 public:
-    KVResponseService(std::atomic<bool> *_rcvd_resp, int *_status, std::string *_value, std::condition_variable *_condVar);
+    KVResponseService(std::atomic<bool> *_rcvd_resp, int *_status, std::string *_value, std::condition_variable *_condVar, std::shared_ptr<spdlog::logger> _logger);
 
 private:
     std::string addr;
@@ -95,6 +95,7 @@ private:
     int *status;
     std::string *value;
     std::condition_variable *condVar;
+    std::shared_ptr<spdlog::logger> logger;
 
     grpc::Status sendGetResp(grpc::ServerContext* context, const getResp* get_resp, respStatus* resp_status) override;
     grpc::Status sendPutResp(grpc::ServerContext* context, const putResp* put_resp, respStatus* resp_status) override;

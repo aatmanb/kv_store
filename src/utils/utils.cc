@@ -34,10 +34,12 @@ std::vector<PartitionConfig> parseConfigFile(const std::string& config_file) {
     std::vector<PartitionConfig> partitions;
     std::ifstream file(config_file);
     int num_partitions;
-    
+
+    COUT << "parsing config file\n";
+
     if (!file.is_open()) {
         std::cerr << "Error: Could not open file " << config_file << std::endl;
-        return partitions;
+        std::exit(1);
     }
 
     std::string line;
@@ -70,5 +72,6 @@ std::vector<PartitionConfig> parseConfigFile(const std::string& config_file) {
         partition.init();
     }
     
+    COUT << "parsing config file done\n";
     return partitions;
 }

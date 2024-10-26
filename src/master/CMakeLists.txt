@@ -16,4 +16,6 @@ target_link_libraries(master
                         absl::check absl::flags absl::flags_parse absl::log
                         sqlite3
                         ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF}
-                        utils)
+                        utils
+                        spdlog::spdlog
+                    )

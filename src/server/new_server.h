@@ -23,8 +23,6 @@
 #include "spdlog/include/spdlog/spdlog.h"
 #include "spdlog/include/spdlog/sinks/basic_file_sink.h"
 
-// ABSL_FLAG(uint16_t, port, 50051, "Server port for the service");
-
 namespace key_value_store {
 
     void runServer(int id, std::string &master_addr, std::string &local_addr, std::string &log_dir);

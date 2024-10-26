@@ -7,11 +7,11 @@
 #include <grpcpp/grpcpp.h>
 
 namespace key_value_store {
-    void start_master_node(std::string &db_dir, std::string &config_path, int port);
+    void start_master_node(std::string &db_dir, std::string &config_path, int port, std::string &log_dir);
 
     class MasterImpl : public master::Service {
     public:
-        MasterImpl(std::string &db_dir);
+        MasterImpl(std::string &db_dir, std::string &config_path, std::string &log_dir);
 
         grpc::Status notifyRestart(grpc::ServerContext *context, const notifyRestartReq *req, notifyRestartResponse *resp) override;
 

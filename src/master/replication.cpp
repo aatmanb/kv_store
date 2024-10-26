@@ -7,18 +7,26 @@
 namespace key_value_store {
     void print_chain(std::vector<std::string> &chain) {
         if (!chain.size()) return;
-        COUT << "(Head) " << chain[0];
-        for (int i=1; i<chain.size(); i++) {
-            std::cout << " -> " << chain[i];
+        int i;
+        SPDLOG_LOGGER_DEBUG(logger, "(Head) {}", chain[0]);
+        //COUT << "(Head) " << chain[0];
+        for (i=1; i<chain.size()-1; i++) {
+            //std::cout << " -> " << chain[i];
+            SPDLOG_LOGGER_DEBUG(logger, "-> {}", chain[i]);
         }
-        std::cout << "  (Tail)\n";        
+        //std::cout << "  (Tail)\n";
+        SPDLOG_LOGGER_DEBUG(logger, "-> {} (Tail)", chain[i]);
+    }
+
+    ReplicationManager::ReplicationManager() {
+            start_health_check();
     }
 
     void ReplicationManager::add_node(const std::string &server, notifyRestartResponse *resp) {
         std::unique_lock<std::shared_mutex> lock {mtx};
 
         int volume = server_to_chain_map[server];
-        COUT << "Adding " << server << " to volume: " << volume << "\n";
+        SPDLOG_LOGGER_DEBUG(logger, "Adding {} to volume {}", server, volume);
         auto& servers = active_servers[volume];
         if (servers.size()) {    
             // Notify the other nodes of node addition
@@ -39,6 +47,7 @@ namespace key_value_store {
         }
         
         COUT << "Successfully added " << server << " to the chain\n";
+        SPDLOG_LOGGER_DEBUG(logger, "successfully added {} to the chain", server);
         node_to_conn_map[server] = std::move(kv_store::NewStub(grpc::CreateChannel(server, grpc::InsecureChannelCredentials())));
         active_servers[volume].push_back(server);
             
@@ -47,12 +56,14 @@ namespace key_value_store {
     }
 
     void ReplicationManager::remove_node(const std::string &server) {
+        SPDLOG_LOGGER_DEBUG(logger, "handling failure of server {}", server);
         COUT << "Handling failure of server: " << server << "\n";
         std::unique_lock<std::shared_mutex> lock {mtx};
         int volume = server_to_chain_map[server];
         auto& servers = active_servers[volume];
         int idx = std::find(servers.begin(), servers.end(), server) - servers.begin();
         if (!idx && servers.size() > 1) {
+            SPDLOG_LOGGER_DEBUG(logger, "processing head failure");
             COUT << "Processing head failure...\n";
             // Head failure
             auto new_head = servers[1];
@@ -62,6 +73,7 @@ namespace key_value_store {
             req.set_washead(true);
             req.set_newpred("");
             empty empty_response;
+            SPDLOG_LOGGER_DEBUG(logger, "contacting new head");
             COUT << "Contacting new head...\n";
             node_to_conn_map[new_head]->notifyPredFailure(&ctx, req, &empty_response);
 
@@ -73,6 +85,7 @@ namespace key_value_store {
                 node_to_conn_map[servers[i]]->notifyHeadFailure(&ctx, req1, &empty_response);
             }
         } else if (idx == servers.size() - 1 && servers.size() > 1) {
+            SPDLOG_LOGGER_DEBUG(logger, "processing tail failure");
             COUT << "Processing tail failure\n";
             // Tail failure
             auto new_tail = servers[idx-1];
@@ -92,6 +105,7 @@ namespace key_value_store {
                 node_to_conn_map[servers[i]]->notifyTailFailure(&ctx, req1, &empty_response);
             }
         } else if (idx && (idx + 1) < servers.size()) {
+            SPDLOG_LOGGER_DEBUG(logger, "processing intermediate node failure");
             COUT << "Processing intermediate node failure\n";
             // Intermediate node failure
             notifyPredFailureReq req;
@@ -105,12 +119,15 @@ namespace key_value_store {
         servers.erase(servers.begin() + idx);
         node_to_conn_map.erase(server);
         print_chain(active_servers[volume]);
+        SPDLOG_LOGGER_INFO(logger, "reconfiguration done");
         COUT << "Reconfiguration done\n";
     }
 
     void ReplicationManager::check_health() {
+        SPDLOG_LOGGER_INFO(logger, "launched thread for health checking of servers");
         COUT << "Launched thread for checking health of servers\n";
         while (run_health_check) {
+            SPDLOG_LOGGER_DEBUG(logger, "sending heartbeats");
             COUT << "Sending heartbeats\n";
             std::vector<std::string> servers_to_remove;
             {
@@ -124,6 +141,7 @@ namespace key_value_store {
 
                     if (!status.ok()) {
                         servers_to_remove.push_back(elem.first);
+                        SPDLOG_LOGGER_INFO(logger, "detected failure of node {}", elem.first);
                         COUT << "Detected failure of node: " << elem.first << "\n";
                     }
                 }
@@ -142,18 +160,33 @@ namespace key_value_store {
 
     ReplicationManager::~ReplicationManager() {
         run_health_check = false;
-        COUT << "Waiting for health checker to stop\n";
         if (health_check_thread.joinable()) {
+            SPDLOG_LOGGER_DEBUG(logger, "waiting for health checker to stop");
+            COUT << "Waiting for health checker to stop\n";
             health_check_thread.join();
         }
+        SPDLOG_LOGGER_INFO(logger, "health checker has stopped");
         COUT << "Health check service has stopped\n";
     }
 
-    void ReplicationManager::set_db_dir(std::string &db_dir) {
+    void ReplicationManager::configure(std::string &db_dir, std::string &config_path, std::string &log_dir) {
         this->db_dir = db_dir;
+
+        std::string log_file_name = log_dir + "spdlog_master" + ".log";
+        COUT << log_file_name << std::endl;
+        
+        // Logging example
+        spdlog::flush_every(std::chrono::milliseconds(1));
+        logger = spdlog::basic_logger_mt("basic_logger", log_file_name);
+        // Set the logging level
+        logger->set_level(spdlog::level::debug);
+
+        configure_cluster(config_path);
     }
 
     void ReplicationManager::configure_cluster(std::string &config_path) {
+        COUT << "configuring cluster\n";
+        SPDLOG_LOGGER_INFO(logger, "configuring cluster");
         auto partitions = parseConfigFile(config_path);
         num_volumes = partitions.size();
         active_servers.resize(partitions.size());
@@ -168,6 +201,7 @@ namespace key_value_store {
             }
             i++;
         }
+        SPDLOG_LOGGER_INFO(logger, "configuration done");
     }
 
 }

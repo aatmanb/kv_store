@@ -99,18 +99,24 @@ namespace key_value_store {
         }
         
         std::string log_file_name = log_dir + "spdlog_server_" + std::to_string(id) + ".log";
+        COUT << log_file_name << std::endl;
         
         // Logging example
         spdlog::flush_every(std::chrono::milliseconds(1));
-        logger = spdlog::basic_logger_mt("basic_logger", log_file_name);
+        logger = spdlog::create<spdlog::sinks::basic_file_sink_mt>("basic_logger", log_file_name);
         // Set the logging level
-        logger->set_level(spdlog::level::debug);
+        logger->set_level(spdlog::level::trace);
         SPDLOG_LOGGER_TRACE(logger , "Some trace message that will be evaluated.{} ,{}", 1, 3.23);
         SPDLOG_LOGGER_DEBUG(logger , "Some Debug message that will be evaluated.. {} ,{}", 1, 3.23);
         SPDLOG_LOGGER_INFO(logger , "Some Info message that will be evaluated.. {} ,{}", 1, 3.23);
         SPDLOG_LOGGER_WARN(logger , "Some Warn message that will be evaluated.. {} ,{}", 1, 3.23);
         SPDLOG_LOGGER_ERROR(logger , "Some Error message that will be evaluated.. {} ,{}", 1, 3.23);
         SPDLOG_LOGGER_CRITICAL(logger , "Some Critical message that will be evaluated.. {} ,{}", 1, 3.23);
+        logger->flush();
+        auto tmp_logger = spdlog::basic_logger_mt("tmp_logger", log_file_name);
+        tmp_logger->set_level(spdlog::level::trace);
+        SPDLOG_LOGGER_TRACE(tmp_logger , "Some trace message that will be evaluated.{} ,{}", 1, 3.23);
+        tmp_logger->flush();
     }
 
     kv_storeImpl2::~kv_storeImpl2() {
@@ -128,6 +134,7 @@ namespace key_value_store {
             get_thread.post(std::bind(&kv_storeImpl2::get_process, this, req));
             response->set_status(KV_GET_SUCCESS);
         } catch (const std::exception& e) {
+            SPDLOG_LOGGER_CRITICAL(logger, "error in get_process: {}", e.what());
             std::cerr << "Error in get_process: " << e.what() << std::endl;
             return grpc::Status(grpc::StatusCode::INTERNAL, "Internal error");
         }
@@ -156,13 +163,15 @@ namespace key_value_store {
             put_thread.post(std::bind(&kv_storeImpl2::put_process, this, req));
             response->set_status(KV_PUT_RECEIVED);
         } catch (const std::exception& e) {
-            std::cerr << "Error in get_process: " << e.what() << std::endl;
+            SPDLOG_LOGGER_CRITICAL(logger, "error in put_process: {}", e.what());
+            std::cerr << "Error in put_process: " << e.what() << std::endl;
             return grpc::Status(grpc::StatusCode::INTERNAL, "Internal error");
         }
         return Status::OK;
     }
 
     grpc::Status kv_storeImpl2::fail(grpc::ServerContext* context, const failCommand* request, empty* response) {
+        SPDLOG_LOGGER_INFO(logger, "{}: fail called", addr);
         COUT << addr << ": Fail called\n";
         bool clean = request->clean();
         if (clean) {
@@ -180,8 +189,9 @@ namespace key_value_store {
     }
 
     void kv_storeImpl2::put_process(Request req) {
+        SPDLOG_LOGGER_DEBUG(logger, "is_head: {}, received put() request", is_head.load());
+	    COUT << "HEAD: " << is_head.load() << ", received put() request\n";
 	    if (is_head.load()) {
-	        COUT << "HEAD: " << is_head.load() << ", received put() request\n";
             commit_thread.post(std::bind(&kv_storeImpl2::commit_process, this, req));
         }
         else {
@@ -238,8 +248,8 @@ namespace key_value_store {
         return Status::OK;
     }
 
-    grpc::Status kv_storeImpl2::notifyPredFailure(grpc::ServerContext* context, 
-                const notifyPredFailureReq* request, empty *response) {
+    grpc::Status kv_storeImpl2::notifyPredFailure(grpc::ServerContext* context, const notifyPredFailureReq* request, empty *response) {
+        SPDLOG_LOGGER_DEBUG(logger, "predecessor has failed. reconfiguring...");
         COUT << "Predecessor has failed. Reconfiguring...\n";
         bool was_head = request->washead();
         ack_thread.pause();
@@ -256,6 +266,7 @@ namespace key_value_store {
             head_addr.clear();
 
             is_head.store(true);
+            SPDLOG_LOGGER_DEBUG(logger, "successfully changed head to current node: {}", addr);
             COUT << "Successfully changed head to current node\n";
             put_thread.start();
         } else {
@@ -275,6 +286,7 @@ namespace key_value_store {
             ctx.set_deadline(deadline);
             prev_stub->notifySuccessorFailure(&ctx, req, &resp);
         }
+        SPDLOG_LOGGER_DEBUG(logger, "reconfiguration done");
         COUT << "Reconfiguration done...\n";
         printConfig();
         ack_thread.start();
@@ -282,6 +294,7 @@ namespace key_value_store {
     }
 
     grpc::Status kv_storeImpl2::notifySuccessorFailure(grpc::ServerContext* context, const notifySuccessorFailureReq* request, empty *response) {
+        SPDLOG_LOGGER_DEBUG(logger, "successor has failed. reconfiguring...");
         COUT << "Successor has failed. Reconfiguring...\n";
         std::string new_successor = request->newsuccessor();
         bool was_tail = request->wastail();
@@ -322,6 +335,7 @@ namespace key_value_store {
 
             process_lost_updates(last_put_req);
         }
+        SPDLOG_LOGGER_DEBUG(logger, "reconfiguration done");
         COUT << "Reconfiguration done...\n";
         printConfig();
         commit_thread.start();
@@ -329,8 +343,8 @@ namespace key_value_store {
         return grpc::Status::OK;
     }
 
-    grpc::Status kv_storeImpl2::addTailNode(grpc::ServerContext *context, const addTailNodeReq *req, 
-                empty* response) {
+    grpc::Status kv_storeImpl2::addTailNode(grpc::ServerContext *context, const addTailNodeReq *req, empty* response) {
+        SPDLOG_LOGGER_DEBUG(logger, "received request to add tail node");
         COUT << "Received request to add tail node\n";
         // Pause threads
         commit_thread.pause();
@@ -359,18 +373,21 @@ namespace key_value_store {
         put_thread.start();
         get_thread.start();
 
+        SPDLOG_LOGGER_DEBUG(logger, "reconfiguration done. New tail is: ", tail_addr);
         COUT << "Reconfiguration is successful. New tail is: " << tail_addr << "\n";
 
         return grpc::Status::OK;
     }
 
     grpc::Status kv_storeImpl2::notifyHeadFailure(grpc::ServerContext* context, const headFailureNotification* request, empty *response) {
+        SPDLOG_LOGGER_DEBUG(logger, "received notification about head failure");
         COUT << "Received notification about head failure\n";
         put_thread.pause();
         head_addr = request->new_head();
         head_stub.reset();
         head_stub = kv_store::NewStub(grpc::CreateChannel(head_addr, grpc::InsecureChannelCredentials()));
         put_thread.start();
+        SPDLOG_LOGGER_DEBUG(logger, "reconfiguration done");
         COUT << "Reconfiguration is successful\n";
         return grpc::Status::OK;
     }
@@ -379,6 +396,7 @@ namespace key_value_store {
                 const tailFailureNotification* request, empty *response) {
         ack_thread.pause();
         commit_thread.pause();
+        SPDLOG_LOGGER_DEBUG(logger, "{}: notifyTailFailure", addr);
         COUT << addr << ": notifyTailFailure\n";
         get_thread.pause();
         tail_addr = request->new_tail();
@@ -491,6 +509,7 @@ namespace key_value_store {
             prev_stub->ack(&_context, _req, &_resp); 
         }
         else {
+            SPDLOG_LOGGER_DEBUG(logger, "head received ack");
             COUT << "head received ack" << std::endl;
         }
     }
@@ -560,6 +579,7 @@ namespace key_value_store {
     }
 
     void kv_storeImpl2::printConfig() {
+        SPDLOG_LOGGER_DEBUG(logger, "addr: {}, head_addr: {}, tail_addr: {}, prev_addr: {}, next_addr: {}", addr, head_addr, tail_addr, prev_addr, next_addr);
         COUT << "addr: " << addr << " head_addr: " << head_addr << " tail_addr: " << tail_addr << " prev_addr: " << prev_addr << " next_addr: " << next_addr << std::endl;
     }
 }

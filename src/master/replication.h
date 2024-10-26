@@ -12,6 +12,9 @@
 #include <grpcpp/grpcpp.h>
 #include <shared_mutex>
 
+#include "spdlog/include/spdlog/spdlog.h"
+#include "spdlog/include/spdlog/sinks/basic_file_sink.h"
+
 namespace key_value_store {
     class ReplicationManager: public Singleton<ReplicationManager> {
     private:
@@ -36,11 +39,11 @@ namespace key_value_store {
         void check_health();
 
         std::string db_dir;
+        
+        std::shared_ptr<spdlog::logger> logger;
     
     public:
-        ReplicationManager() {
-            start_health_check();
-        }
+        ReplicationManager();
 
         virtual ~ReplicationManager();
 
@@ -52,6 +55,6 @@ namespace key_value_store {
 
         void start_health_check();
 
-        void set_db_dir(std::string &db_dir);
+        void configure(std::string &db_dir, std::string &config_path, std::string &log_dir);
     };
 }

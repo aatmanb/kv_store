@@ -117,6 +117,7 @@ def createService(config_file, master_port='', log_dir=''):
         cmd = bin_dir + 'master'
         cmd += ' ' + f'--db_dir={db_dir}'
         cmd += ' ' + f'--config_path={config_file}'
+        cmd += ' ' + f'--log_dir={log_dir}'
         
         print(f"Starting master")
         print(cmd)
@@ -125,7 +126,7 @@ def createService(config_file, master_port='', log_dir=''):
         global master_processes
 
         with open(log_file, 'w') as f:
-            process = subprocess.Popen(cmd, shell=True, stdout=f, stderr=subprocess.PIPE, preexec_fn=os.setsid)
+            process = subprocess.Popen(cmd, shell=True, stdout=f, stderr=f, preexec_fn=os.setsid)
             master_processes.append(process)
 
     time.sleep(1)
@@ -158,7 +159,7 @@ def terminateService():
     terminateServers()
 
 
-def startClients(args):
+def startClients(args, log_dir):
     for client_id in range(args.num_clients):
         cmd = 'python3 client.py'
         cmd += ' ' + f'--id={client_id}'
@@ -167,7 +168,7 @@ def startClients(args):
         cmd += ' ' + f'--fake-fname={args.fake_fname}'
         cmd += ' ' + f'--test-type={args.test_type}'
         cmd += ' ' + f'--top-dir={args.top_dir}'
-        cmd += ' ' + f'--log-dir={args.log_dir}'
+        cmd += ' ' + f'--log-dir={log_dir}'
         
         if (args.vk_ratio != 0):  
             cmd += ' ' + f'--vk_ratio={args.vk_ratio}'
@@ -182,7 +183,7 @@ def startClients(args):
         with open(log_file, 'w') as f:
             process = subprocess.Popen(cmd, shell=True, stdout=f, stderr=f)
             client_processes.append(process)
-    manualKillServers()
+    #manualKillServers()
 
 
 def terminateClients():
@@ -306,7 +307,7 @@ if __name__ == "__main__":
 
     if (not args.only_service):
         try:
-            startClients(args)
+            startClients(args, log_dir)
         except Exception as e:
             print(f"An unexpected exception occured: {e}")
             terminateTest()

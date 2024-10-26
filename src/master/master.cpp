@@ -15,18 +15,16 @@ namespace key_value_store {
         return grpc::Status::OK;
     }
 
-    MasterImpl::MasterImpl(std::string &db_dir) {
+    MasterImpl::MasterImpl(std::string &db_dir, std::string &config_path, std::string &log_dir) {
         inst = ReplicationManager::get_instance();
-        inst->set_db_dir(db_dir);
+        inst->configure(db_dir, config_path, log_dir);
     }
 
-    void start_master_node(std::string &db_dir, std::string &config_path, int port) {
+    void start_master_node(std::string &db_dir, std::string &config_path, int port, std::string &log_dir) {
+        COUT << "starting master node\n";
         std::string addr = "0.0.0.0:" + std::to_string(port);
 
-        auto repl_inst = ReplicationManager::get_instance();
-        repl_inst->configure_cluster(config_path);
-
-        MasterImpl master {db_dir};
+        MasterImpl master {db_dir, config_path, log_dir};
         grpc::EnableDefaultHealthCheckService(true);
         grpc::reflection::InitProtoReflectionServerBuilderPlugin();
         grpc::ServerBuilder builder;
