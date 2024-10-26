@@ -19,8 +19,8 @@ using grpc::ServerContext;
 using grpc::Status;
 
 namespace key_value_store {
-    void runServer(std::string &master_addr, std::string &local_addr) {
-        kv_storeImpl2 service(master_addr, local_addr);
+    void runServer(int id, std::string &master_addr, std::string &local_addr) {
+        kv_storeImpl2 service(id, master_addr, local_addr);
         
         grpc::EnableDefaultHealthCheckService(true);
         grpc::reflection::InitProtoReflectionServerBuilderPlugin();
@@ -80,9 +80,11 @@ namespace key_value_store {
         resp_thread.start();
     }
 
-    kv_storeImpl2::kv_storeImpl2(std::string &master_addr, std::string &addr):
-            manager_addr(master_addr),
-            addr(addr) {
+    kv_storeImpl2::kv_storeImpl2(int _id, std::string &master_addr, std::string &addr):
+        id(_id),
+        manager_addr(master_addr),
+        addr(addr) {
+        
         is_tail.store(true);
 
         if (!manager_addr.empty()) {
@@ -91,6 +93,20 @@ namespace key_value_store {
             // Manager address is empty
             throw new std::runtime_error("No manager address provided");
         }
+        
+        std::string log_file_name = "out/server_" + std::to_string(id) + ".log";
+        
+        // Logging example
+        spdlog::flush_every(std::chrono::milliseconds(1));
+        logger = spdlog::basic_logger_mt("basic_logger", log_file_name);
+        // Set the logging level
+        logger->set_level(spdlog::level::debug);
+        SPDLOG_LOGGER_TRACE(logger , "Some trace message that will be evaluated.{} ,{}", 1, 3.23);
+        SPDLOG_LOGGER_DEBUG(logger , "Some Debug message that will be evaluated.. {} ,{}", 1, 3.23);
+        SPDLOG_LOGGER_INFO(logger , "Some Info message that will be evaluated.. {} ,{}", 1, 3.23);
+        SPDLOG_LOGGER_WARN(logger , "Some Warn message that will be evaluated.. {} ,{}", 1, 3.23);
+        SPDLOG_LOGGER_ERROR(logger , "Some Error message that will be evaluated.. {} ,{}", 1, 3.23);
+        SPDLOG_LOGGER_CRITICAL(logger , "Some Critical message that will be evaluated.. {} ,{}", 1, 3.23);
     }
 
     kv_storeImpl2::~kv_storeImpl2() {

@@ -23,7 +23,9 @@ target_link_libraries(server
                         absl::check absl::flags absl::flags_parse absl::log
                         sqlite3
                         ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF}
-                        utils)
+                        utils
+                        spdlog::spdlog
+                     )
 
 set_target_properties(server PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"

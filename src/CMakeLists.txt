@@ -27,7 +27,7 @@ target_link_libraries(739kv
 
 # Add pybind shared library
 include_directories("${CMAKE_SOURCE_DIR}/extern/pybind11/include")
-include_directories("/usr/include/python3.10")
+include_directories("/usr/include/python3.8")
 
 add_library(kv739_py SHARED wrapper.cpp)
 target_link_libraries(kv739_py PRIVATE 739kv)

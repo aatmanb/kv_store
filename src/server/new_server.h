@@ -20,15 +20,18 @@
 
 #include "utils.h"
 
+#include "spdlog/include/spdlog/spdlog.h"
+#include "spdlog/include/spdlog/sinks/basic_file_sink.h"
+
 // ABSL_FLAG(uint16_t, port, 50051, "Server port for the service");
 
 namespace key_value_store {
 
-    void runServer(std::string &master_addr, std::string &local_addr);
+    void runServer(int id, std::string &master_addr, std::string &local_addr);
     
     class kv_storeImpl2 final : public kv_store::Service {
     public:
-        kv_storeImpl2(std::string &master_addr, std::string &addr); 
+        kv_storeImpl2(int _id, std::string &master_addr, std::string &addr); 
         ~kv_storeImpl2();
 
         /**
@@ -41,7 +44,7 @@ namespace key_value_store {
         void start();
  
     private: 
-        uint32_t id;
+        int id;
 	const char *db_name;
         std::unique_ptr<DatabaseUtils> db_utils;
 
@@ -115,5 +118,7 @@ namespace key_value_store {
         void commit_sent_updates();
 
         void printConfig();
+        
+        std::shared_ptr<spdlog::logger> logger;
     };
 }

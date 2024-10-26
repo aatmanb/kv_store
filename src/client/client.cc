@@ -16,15 +16,29 @@
 #include "kv_store.grpc.pb.h"
 #include "client.h"
 
+
 using grpc::Channel;
 using grpc::ClientContext;
 using grpc::Status;
 
-client::client(int timeout, const std::string& config_file) : 
-    id(0), 
+client::client(int _id, int timeout, const std::string& config_file) : 
+    id(_id), 
     timeout(timeout)
 {
     std::cout << "Parsing Chain Config file" << std::endl;
+    std::string log_file_name = "out/client_" + std::to_string(id) + ".log";
+    
+    // Logging example
+    spdlog::flush_every(std::chrono::milliseconds(1));
+    logger = spdlog::basic_logger_mt("basic_logger", log_file_name);
+    // Set the logging level
+    logger->set_level(spdlog::level::debug);
+    SPDLOG_LOGGER_TRACE(logger , "Some trace message that will be evaluated.{} ,{}", 1, 3.23);
+    SPDLOG_LOGGER_DEBUG(logger , "Some Debug message that will be evaluated.. {} ,{}", 1, 3.23);
+    SPDLOG_LOGGER_INFO(logger , "Some Info message that will be evaluated.. {} ,{}", 1, 3.23);
+    SPDLOG_LOGGER_WARN(logger , "Some Warn message that will be evaluated.. {} ,{}", 1, 3.23);
+    SPDLOG_LOGGER_ERROR(logger , "Some Error message that will be evaluated.. {} ,{}", 1, 3.23);
+    SPDLOG_LOGGER_CRITICAL(logger , "Some Critical message that will be evaluated.. {} ,{}", 1, 3.23);
 
     partitions = parseConfigFile(config_file); 
     num_partitions = partitions.size(); 

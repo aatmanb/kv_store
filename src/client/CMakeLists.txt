@@ -12,7 +12,9 @@ target_link_libraries(client
                         boost_thread
                         absl::check absl::flags absl::flags_parse absl::log
                         ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF}
-                        utils)
+                        utils
+                        spdlog::spdlog
+                    )
 
 set_target_properties(client PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"

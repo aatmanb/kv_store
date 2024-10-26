@@ -17,7 +17,7 @@ const int max_retry = 5;
 bool verifyKey(const std::string s);
 bool verifyValue(const std::string s);
 
-int kv739_init(const std::string& config_file);
+int kv739_init(int id, const std::string& config_file);
 int kv739_shutdown();
 int kv739_get(const std::string key, std::string &value);
 int kv739_put(const std::string key, const std::string value, std::string &old_value);

@@ -22,9 +22,12 @@
 #include "kv_store.grpc.pb.h"
 #include "utils.h"
 
+#include "spdlog/include/spdlog/spdlog.h"
+#include "spdlog/include/spdlog/sinks/basic_file_sink.h"
+
 class client {
 public:
-    client(int timeout, const std::string& config_file);
+    client(int _id, int timeout, const std::string& config_file);
     ~client();
 
     int get(std::string key, std::string &value);
@@ -34,7 +37,7 @@ public:
     // std::unique_ptr<kv_store::Stub> createStub(const std::string& port);
     std::unique_ptr<kv_store::Stub>& getStub(const std::string& key, bool retry=false);
 
-    uint16_t id;
+    int id;
 
     int timeout;
 
@@ -61,6 +64,8 @@ private:
     
     std::condition_variable condVar;
     std::mutex lock_for_rcvd_resp; 
+    
+    std::shared_ptr<spdlog::logger> logger;
 };
 
 class KVResponseService final : public KVResponse::Service {

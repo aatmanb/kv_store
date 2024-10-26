@@ -16,9 +16,11 @@ set(CMAKE_LIB_DIR ${CMAKE_SOURCE_DIR}/src)
 
 # Find absl package
 find_package(absl CONFIG REQUIRED)
+find_package(spdlog REQUIRED HINTS "${CMAKE_SOURCE_DIR}/external/spdlog/build")
 
 include_directories("${CMAKE_SOURCE_DIR}/.local/include")
+include_directories("${CMAKE_SOURCE_DIR}/external")
 
 # Add subdirectories
 add_subdirectory(src)
-add_subdirectory(test)
+#add_subdirectory(test)

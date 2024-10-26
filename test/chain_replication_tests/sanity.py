@@ -10,7 +10,7 @@ def runGetTest(config_file, id, num_keys):
     key = ""
     value = ""
     total_duration = 0
-    kv.init(config_file)
+    kv.init(id, config_file)
     for i in range(num_keys):
         key = "test_key_" + str(i)
         start = time.time_ns()
@@ -34,7 +34,7 @@ def runPutTest(config_file, id, num_keys):
     value = ""
     old_value = ""
     total_duration = 0
-    kv.init(config_file)
+    kv.init(id, config_file)
     for i in range(num_keys):
         key = "test_key_" + str(i)
         value = "test_value_" + str(i) 
