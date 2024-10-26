@@ -16,3 +16,6 @@ test/single_server_tests/__pycache__
 test/single_server_tests/out/
 build/
 bin/
+test/data
+
+out*
