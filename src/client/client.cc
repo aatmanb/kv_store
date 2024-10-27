@@ -33,6 +33,7 @@ client::client(int _id, int timeout, const std::string& config_file, const std::
     logger = spdlog::basic_logger_mt("basic_logger", log_file_name);
     // Set the logging level
     logger->set_level(spdlog::level::debug);
+    logger->flush_on(spdlog::level::debug);
     SPDLOG_LOGGER_TRACE(logger , "Some trace message that will be evaluated.{} ,{}", 1, 3.23);
     SPDLOG_LOGGER_DEBUG(logger , "Some Debug message that will be evaluated.. {} ,{}", 1, 3.23);
     SPDLOG_LOGGER_INFO(logger , "Some Info message that will be evaluated.. {} ,{}", 1, 3.23);

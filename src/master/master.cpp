@@ -16,8 +16,18 @@ namespace key_value_store {
     }
 
     MasterImpl::MasterImpl(std::string &db_dir, std::string &config_path, std::string &log_dir) {
-        inst = ReplicationManager::get_instance();
-        inst->configure(db_dir, config_path, log_dir);
+        std::string log_file_name = log_dir + "spdlog_master" + ".log";
+        COUT << log_file_name << std::endl;
+        
+        spdlog::flush_every(std::chrono::milliseconds(1));
+        logger = spdlog::basic_logger_mt("basic_logger", log_file_name);
+        // Set the logging level
+        logger->set_level(spdlog::level::debug);
+        logger->flush_on(spdlog::level::debug);
+
+        //inst = ReplicationManager::get_instance();
+        inst = new ReplicationManager();
+        inst->configure(db_dir, config_path, logger);
     }
 
     void start_master_node(std::string &db_dir, std::string &config_path, int port, std::string &log_dir) {

@@ -12,11 +12,12 @@
 #include <grpcpp/grpcpp.h>
 #include <shared_mutex>
 
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 #include "spdlog/include/spdlog/spdlog.h"
 #include "spdlog/include/spdlog/sinks/basic_file_sink.h"
 
 namespace key_value_store {
-    class ReplicationManager: public Singleton<ReplicationManager> {
+    class ReplicationManager{ //}: public Singleton<ReplicationManager> {
     private:
         std::shared_mutex mtx;
 
@@ -24,7 +25,7 @@ namespace key_value_store {
 
         std::atomic_bool run_health_check {true};
 
-        friend class Singleton<ReplicationManager>;
+        //friend class Singleton<ReplicationManager>;
 
         std::unordered_map<std::string, int> server_to_chain_map;
 
@@ -55,6 +56,7 @@ namespace key_value_store {
 
         void start_health_check();
 
-        void configure(std::string &db_dir, std::string &config_path, std::string &log_dir);
+        void configure(std::string &db_dir, std::string &config_path, std::shared_ptr<spdlog::logger> logger);
+        void print_chain(std::vector<std::string> &chain);
     };
 }

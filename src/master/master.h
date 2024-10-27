@@ -17,6 +17,7 @@ namespace key_value_store {
 
         grpc::Status notifyFailure(grpc::ServerContext *context, const notifyFailureReq *req, empty *resp) override;
     private:
+        std::shared_ptr<spdlog::logger> logger;
         ReplicationManager *inst;
     };
 

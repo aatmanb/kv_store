@@ -20,6 +20,7 @@
 
 #include "utils.h"
 
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 #include "spdlog/include/spdlog/spdlog.h"
 #include "spdlog/include/spdlog/sinks/basic_file_sink.h"
 

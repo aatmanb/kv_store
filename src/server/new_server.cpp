@@ -43,6 +43,7 @@ namespace key_value_store {
     }
 
     void kv_storeImpl2::start() {
+        SPDLOG_LOGGER_INFO(logger , "Contacting master at {}", manager_addr);
         COUT << "Contacting master at: " << manager_addr << "\n";
 
         // Notify manager that this server has restarted
@@ -103,20 +104,17 @@ namespace key_value_store {
         
         // Logging example
         spdlog::flush_every(std::chrono::milliseconds(1));
-        logger = spdlog::create<spdlog::sinks::basic_file_sink_mt>("basic_logger", log_file_name);
+        //logger = spdlog::create<spdlog::sinks::basic_file_sink_mt>("basic_logger", log_file_name);
+        logger = spdlog::basic_logger_mt("server_logger", log_file_name);
         // Set the logging level
-        logger->set_level(spdlog::level::trace);
+        logger->set_level(spdlog::level::debug);
+        logger->flush_on(spdlog::level::debug);
         SPDLOG_LOGGER_TRACE(logger , "Some trace message that will be evaluated.{} ,{}", 1, 3.23);
         SPDLOG_LOGGER_DEBUG(logger , "Some Debug message that will be evaluated.. {} ,{}", 1, 3.23);
         SPDLOG_LOGGER_INFO(logger , "Some Info message that will be evaluated.. {} ,{}", 1, 3.23);
         SPDLOG_LOGGER_WARN(logger , "Some Warn message that will be evaluated.. {} ,{}", 1, 3.23);
         SPDLOG_LOGGER_ERROR(logger , "Some Error message that will be evaluated.. {} ,{}", 1, 3.23);
         SPDLOG_LOGGER_CRITICAL(logger , "Some Critical message that will be evaluated.. {} ,{}", 1, 3.23);
-        logger->flush();
-        auto tmp_logger = spdlog::basic_logger_mt("tmp_logger", log_file_name);
-        tmp_logger->set_level(spdlog::level::trace);
-        SPDLOG_LOGGER_TRACE(tmp_logger , "Some trace message that will be evaluated.{} ,{}", 1, 3.23);
-        tmp_logger->flush();
     }
 
     kv_storeImpl2::~kv_storeImpl2() {
@@ -573,8 +571,8 @@ namespace key_value_store {
         }
     }
 
-    grpc::Status kv_storeImpl2::heartBeat(grpc::ServerContext *context, 
-            const empty* request, empty *response) {
+    grpc::Status kv_storeImpl2::heartBeat(grpc::ServerContext *context, const empty* request, empty *response) {
+        SPDLOG_LOGGER_DEBUG(logger, "sending heartbeat");
         return grpc::Status::OK;
     }
 

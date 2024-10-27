@@ -5,17 +5,20 @@
 #include <chrono>
 
 namespace key_value_store {
-    void print_chain(std::vector<std::string> &chain) {
+    void ReplicationManager::print_chain(std::vector<std::string> &chain) {
         if (!chain.size()) return;
         int i;
         SPDLOG_LOGGER_DEBUG(logger, "(Head) {}", chain[0]);
-        //COUT << "(Head) " << chain[0];
         for (i=1; i<chain.size()-1; i++) {
-            //std::cout << " -> " << chain[i];
             SPDLOG_LOGGER_DEBUG(logger, "-> {}", chain[i]);
         }
-        //std::cout << "  (Tail)\n";
-        SPDLOG_LOGGER_DEBUG(logger, "-> {} (Tail)", chain[i]);
+
+        if (i == chain.size() - 1) { // there are atleast two servers
+            SPDLOG_LOGGER_DEBUG(logger, "-> {} (Tail)", chain[i]);
+        }
+        else {
+            SPDLOG_LOGGER_DEBUG(logger, " (Tail)");
+        }
     }
 
     ReplicationManager::ReplicationManager() {
@@ -169,17 +172,9 @@ namespace key_value_store {
         COUT << "Health check service has stopped\n";
     }
 
-    void ReplicationManager::configure(std::string &db_dir, std::string &config_path, std::string &log_dir) {
+    void ReplicationManager::configure(std::string &db_dir, std::string &config_path, std::shared_ptr<spdlog::logger> logger) {
         this->db_dir = db_dir;
-
-        std::string log_file_name = log_dir + "spdlog_master" + ".log";
-        COUT << log_file_name << std::endl;
-        
-        // Logging example
-        spdlog::flush_every(std::chrono::milliseconds(1));
-        logger = spdlog::basic_logger_mt("basic_logger", log_file_name);
-        // Set the logging level
-        logger->set_level(spdlog::level::debug);
+        this->logger = logger;
 
         configure_cluster(config_path);
     }
