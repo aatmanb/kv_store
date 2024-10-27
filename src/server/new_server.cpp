@@ -52,13 +52,12 @@ namespace key_value_store {
         req.set_node(addr);
         notifyRestartResponse response;
         COUT << "Notifying manager about restart...\n";
-        auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
-        ctx.set_deadline(deadline);
+        // Don't set a deadline here!
         auto status = manager_stub->notifyRestart(&ctx, req, &response);
         COUT << "Manager has been notified\n";
 
         if (!status.ok()) {
-            throw new std::runtime_error(status.error_message());
+            throw new std::runtime_error("Failed to notify master about restart");
         }
 
         db_name = response.db_path().c_str();
