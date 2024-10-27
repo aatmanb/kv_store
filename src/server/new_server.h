@@ -119,5 +119,7 @@ namespace key_value_store {
         void printConfig();
         
         std::shared_ptr<spdlog::logger> logger;
+
+        void printGrpcStatus(grpc::Status status);
     };
 }

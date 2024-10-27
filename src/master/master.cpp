@@ -2,8 +2,8 @@
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 
 namespace key_value_store {
-    grpc::Status MasterImpl::notifyRestart(grpc::ServerContext *context, const notifyRestartReq *req, 
-            notifyRestartResponse *resp) {
+    grpc::Status MasterImpl::notifyRestart(grpc::ServerContext *context, const notifyRestartReq *req, notifyRestartResponse *resp) {
+        SPDLOG_LOGGER_INFO(logger, "received restart notification from {}", req->node());
         COUT << "Received restart notification from " << req->node() << "\n";
         inst->add_node(req->node(), resp);
         

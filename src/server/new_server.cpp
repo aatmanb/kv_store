@@ -19,7 +19,8 @@ using grpc::ServerContext;
 using grpc::Status;
 
 namespace key_value_store {
-    static constexpr int CONNECTION_TIMEOUT = 500;
+    // Master takes about 5 seconds to add a new node to the chain. Connection timeout should be greater than that.
+    static constexpr int CONNECTION_TIMEOUT = 10; // seconds
 
     void runServer(int id, std::string &master_addr, std::string &local_addr, std::string &log_dir) {
         kv_storeImpl2 service(id, master_addr, local_addr, log_dir);
@@ -51,15 +52,19 @@ namespace key_value_store {
         notifyRestartReq req;
         req.set_node(addr);
         notifyRestartResponse response;
+        SPDLOG_LOGGER_DEBUG(logger , "Notifiying manager about restart");
         COUT << "Notifying manager about restart...\n";
-        // Don't set a deadline here!
+        auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
+        ctx.set_deadline(deadline);
         auto status = manager_stub->notifyRestart(&ctx, req, &response);
-        COUT << "Manager has been notified\n";
-
         if (!status.ok()) {
-            throw new std::runtime_error("Failed to notify master about restart");
+            SPDLOG_LOGGER_CRITICAL(logger , "Restart failed");
+            printGrpcStatus(status);
+            throw new std::runtime_error(status.error_message());
         }
 
+        SPDLOG_LOGGER_DEBUG(logger , "Manager has been notified");
+        COUT << "Manager has been notified\n";
         db_name = response.db_path().c_str();
         db_utils = std::move(std::make_unique<DatabaseUtils>(db_name));
         db_utils->open();
@@ -89,15 +94,6 @@ namespace key_value_store {
         manager_addr(master_addr),
         addr(addr) {
         
-        is_tail.store(true);
-
-        if (!manager_addr.empty()) {
-            manager_stub = master::NewStub(grpc::CreateChannel(manager_addr, grpc::InsecureChannelCredentials()));
-        } else {
-            // Manager address is empty
-            throw new std::runtime_error("No manager address provided");
-        }
-        
         std::string log_file_name = log_dir + "spdlog_server_" + std::to_string(id) + ".log";
         COUT << log_file_name << std::endl;
         
@@ -114,6 +110,17 @@ namespace key_value_store {
         SPDLOG_LOGGER_WARN(logger , "Some Warn message that will be evaluated.. {} ,{}", 1, 3.23);
         SPDLOG_LOGGER_ERROR(logger , "Some Error message that will be evaluated.. {} ,{}", 1, 3.23);
         SPDLOG_LOGGER_CRITICAL(logger , "Some Critical message that will be evaluated.. {} ,{}", 1, 3.23);
+        
+        is_tail.store(true);
+
+        if (!manager_addr.empty()) {
+            SPDLOG_LOGGER_INFO(logger , "master addr is {}. Creating master stub...", manager_addr);
+            manager_stub = master::NewStub(grpc::CreateChannel(manager_addr, grpc::InsecureChannelCredentials()));
+        } else {
+            // Manager address is empty
+            throw new std::runtime_error("No manager address provided");
+        }
+        
     }
 
     kv_storeImpl2::~kv_storeImpl2() {
@@ -146,7 +153,7 @@ namespace key_value_store {
             ClientContext _context;
             fwdGetReq _req = req.rpc_fwdGetReq();
             empty _resp;
-            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
             _context.set_deadline(deadline);
             Status status = tail_stub->fwdGet(&_context, _req, &_resp);
         }
@@ -176,7 +183,7 @@ namespace key_value_store {
             notifyFailureReq req;
             req.set_failednode(addr);
             empty response;
-            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
             ctx.set_deadline(deadline);
             manager_stub->notifyFailure(&ctx, req, &response);
             db_utils->close();
@@ -207,7 +214,7 @@ namespace key_value_store {
 	        //original_req->set_value (req.value);
 	        //meta->set_addr(req.addr);
 	        empty _resp;
-            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
             _context.set_deadline(deadline);
 	        Status status = head_stub->fwdPut(&_context, _req, &_resp);
         }
@@ -279,7 +286,7 @@ namespace key_value_store {
                 req.set_allocated_lastputreq(&last_put_req);
             }
             empty resp;
-            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
             ctx.set_deadline(deadline);
             prev_stub->notifySuccessorFailure(&ctx, req, &resp);
         }
@@ -453,7 +460,7 @@ namespace key_value_store {
                 ClientContext context;
                 empty _resp;
                 auto fwd_put_req = Request(req).rpc_fwdPutReq();
-                auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+                auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
                 context.set_deadline(deadline);
                 next_stub->commit(&context, fwd_put_req, &_resp);
             }
@@ -479,7 +486,7 @@ namespace key_value_store {
 	        ClientContext _context;
             fwdPutReq _req = req.rpc_fwdPutReq();
             empty _resp;
-            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
             _context.set_deadline(deadline);
             next_stub->commit(&_context, _req, &_resp);
         }
@@ -501,7 +508,7 @@ namespace key_value_store {
 	        ClientContext _context;
             putAck _req = curr_req.rpc_putAck();
             empty _resp;
-            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
             _context.set_deadline(deadline);
             prev_stub->ack(&_context, _req, &_resp); 
         }
@@ -537,7 +544,7 @@ namespace key_value_store {
             }
             
             // Send response to client
-            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
             _context.set_deadline(deadline);
             Status status = client_stub->sendGetResp(&_context, _req, &_resp);
             // Send ack to predecessor
@@ -558,7 +565,7 @@ namespace key_value_store {
             }
 
             // Send response to client
-            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(CONNECTION_TIMEOUT);
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
             _context.set_deadline(deadline);
             Status status = client_stub->sendPutResp(&_context, _req, &_resp);
             // Send ack to predecessor
@@ -578,5 +585,9 @@ namespace key_value_store {
     void kv_storeImpl2::printConfig() {
         SPDLOG_LOGGER_DEBUG(logger, "addr: {}, head_addr: {}, tail_addr: {}, prev_addr: {}, next_addr: {}", addr, head_addr, tail_addr, prev_addr, next_addr);
         COUT << "addr: " << addr << " head_addr: " << head_addr << " tail_addr: " << tail_addr << " prev_addr: " << prev_addr << " next_addr: " << next_addr << std::endl;
+    }
+    
+    void kv_storeImpl2::printGrpcStatus(grpc::Status status) {
+        SPDLOG_LOGGER_CRITICAL(logger, "gRPC called failed.\nError message: {}\nError details: {}", status.error_message(), status.error_details());
     }
 }

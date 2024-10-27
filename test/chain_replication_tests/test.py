@@ -92,8 +92,8 @@ def startServer(config, head=False, tail=False, head_port='', tail_port='', prev
     with open(log_file, 'w') as f:
         process = subprocess.Popen(cmd, shell=True, stdout=f, stderr=f, preexec_fn=os.setsid)
         server_processes.append(process)
-    
-    #time.sleep(1)
+ 
+    time.sleep(5)
 
 
 def createChain(server_list, master_port='', log_dir=''):
@@ -129,7 +129,7 @@ def createService(config_file, master_port='', log_dir=''):
             process = subprocess.Popen(cmd, shell=True, stdout=f, stderr=f, preexec_fn=os.setsid)
             master_processes.append(process)
 
-    time.sleep(1)
+    time.sleep(5)
 
     partitions = getPartitionConfig(config_file)
     for _, servers in partitions.items():
@@ -159,7 +159,7 @@ def terminateService():
     terminateServers()
 
 
-def startClients(args, log_dir):
+def startClients(args):
     for client_id in range(args.num_clients):
         cmd = 'python3 client.py'
         cmd += ' ' + f'--id={client_id}'
@@ -168,7 +168,7 @@ def startClients(args, log_dir):
         cmd += ' ' + f'--fake-fname={args.fake_fname}'
         cmd += ' ' + f'--test-type={args.test_type}'
         cmd += ' ' + f'--top-dir={args.top_dir}'
-        cmd += ' ' + f'--log-dir={log_dir}'
+        cmd += ' ' + f'--log-dir={args.log_dir}'
         
         if (args.vk_ratio != 0):  
             cmd += ' ' + f'--vk_ratio={args.vk_ratio}'
@@ -307,7 +307,7 @@ if __name__ == "__main__":
 
     if (not args.only_service):
         try:
-            startClients(args, log_dir)
+            startClients(args)
         except Exception as e:
             print(f"An unexpected exception occured: {e}")
             terminateTest()
