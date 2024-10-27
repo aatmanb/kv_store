@@ -21,6 +21,8 @@ using grpc::Channel;
 using grpc::ClientContext;
 using grpc::Status;
 
+client::client() {}
+
 client::client(int _id, int timeout, const std::string& config_file, const std::string& log_dir) : 
     id(_id), 
     timeout(timeout)
@@ -76,6 +78,10 @@ client::client(int _id, int timeout, const std::string& config_file, const std::
 client::~client() {
     SPDLOG_LOGGER_INFO(logger , "killing server");
     std::cout << "killing server" << std::endl;
+    spdlog::drop("basic_logger");
+    if (spdlog::get("basic_logger") == nullptr) {
+        COUT << "logger has been successfully deregistered\n";
+    }
     resp_server->Shutdown();
     if (server_thread.joinable()) {
         server_thread.join();

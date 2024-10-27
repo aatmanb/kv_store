@@ -40,6 +40,7 @@ public:
 class client {
 public:
     client(int _id, int timeout, const std::string& config_file, const std::string& log_dir);
+    client();
     ~client();
 
     int get(std::string key, std::string &value);
