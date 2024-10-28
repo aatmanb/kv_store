@@ -8,6 +8,30 @@ typedef enum {
 
 class Request {
 public:
+    Request(std::string _addr, request_t _type, std::string _key, std::string _value, bool _retry):
+        addr(_addr),
+        type(_type),
+        key(_key),
+        value(_value),
+        retry(_retry)
+    {}
+    
+    Request(std::string _addr, request_t _type, std::string _key, bool _retry):
+        addr(_addr),
+        type(_type),
+        key(_key),
+        value(""),
+        retry(_retry)
+    {}
+    
+    Request():
+        addr(""),
+        type(request_t::INV),
+        key(""),
+        value(""),
+        retry(false)
+    {}
+
     Request(std::string _addr, request_t _type, std::string _key, std::string _value):
         addr(_addr),
         type(_type),
@@ -21,18 +45,11 @@ public:
         key(_key),
         value("")
     {}
-    
-    Request():
-        addr(""),
-        type(request_t::INV),
-        key(""),
-        value("")
-    {}
 
-    Request(getReq _req): Request(_req.meta().addr(), request_t::GET, _req.key()) {}
+    Request(getReq _req): Request(_req.meta().addr(), request_t::GET, _req.key(), _req.retry()) {}
     Request(fwdGetReq _req): Request(_req.req()) {}
     
-    Request(putReq _req): Request(_req.meta().addr(), request_t::PUT, _req.key(), _req.value()) {}
+    Request(putReq _req): Request(_req.meta().addr(), request_t::PUT, _req.key(), _req.value(), _req.retry()) {}
     Request(fwdPutReq _req): Request(_req.req()) {}
     Request(putAck _req): Request(_req.meta().addr(), request_t::PUT, _req.key(), _req.value()) {}
 
@@ -60,6 +77,7 @@ public:
         putReq req;
         req.set_key(key);
         req.set_value(value);
+        req.set_retry(retry);
         auto *meta = req.mutable_meta();
         meta->set_addr(addr);
         return req;
@@ -72,6 +90,7 @@ public:
         auto *meta = original_req->mutable_meta();
         original_req->set_key(key);
         original_req->set_value(value);
+        original_req->set_retry(retry);
         meta->set_addr(addr);
         return req;
     }
@@ -99,4 +118,5 @@ public:
     request_t type;
     std::string key;
     std::string value;
+    bool retry;
 };

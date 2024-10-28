@@ -39,9 +39,9 @@ client::client(int _id, int timeout, const std::string& config_file, const std::
     SPDLOG_LOGGER_TRACE(logger , "Some trace message that will be evaluated.{} ,{}", 1, 3.23);
     SPDLOG_LOGGER_DEBUG(logger , "Some Debug message that will be evaluated.. {} ,{}", 1, 3.23);
     SPDLOG_LOGGER_INFO(logger , "Some Info message that will be evaluated.. {} ,{}", 1, 3.23);
-    SPDLOG_LOGGER_WARN(logger , "Some Warn message that will be evaluated.. {} ,{}", 1, 3.23);
-    SPDLOG_LOGGER_ERROR(logger , "Some Error message that will be evaluated.. {} ,{}", 1, 3.23);
-    SPDLOG_LOGGER_CRITICAL(logger , "Some Critical message that will be evaluated.. {} ,{}", 1, 3.23);
+    //SPDLOG_LOGGER_WARN(logger , "Some Warn message that will be evaluated.. {} ,{}", 1, 3.23);
+    //SPDLOG_LOGGER_ERROR(logger , "Some Error message that will be evaluated.. {} ,{}", 1, 3.23);
+    //SPDLOG_LOGGER_CRITICAL(logger , "Some Critical message that will be evaluated.. {} ,{}", 1, 3.23);
 
     SPDLOG_LOGGER_INFO(logger , "parsing config file");
     partitions = parseConfigFile(config_file); 
@@ -120,14 +120,11 @@ client::get(std::string key, std::string &value) {
     getReq request;
     request.set_key(key);
     auto *_meta = request.mutable_meta();
+    request.set_retry(false);
     _meta->set_addr("localhost:"+resp_server_addr);
 
     reqStatus response;
-
-    ClientContext context;
-    auto deadline = std::chrono::system_clock::now() + std::chrono::seconds(timeout);
-    context.set_deadline(deadline);
-    
+ 
     int num_retry_per_server, num_retry_per_key;
     ServerConfig *server;
 
@@ -141,6 +138,13 @@ client::get(std::string key, std::string &value) {
         while (num_retry_per_server < req_retry_limit_per_server) {
             // Submit query
             num_retry_per_server++;
+            
+            // Create Client context every time we retry
+            ClientContext context;
+            auto deadline = std::chrono::system_clock::now() + std::chrono::seconds(timeout);
+            context.set_deadline(deadline);
+            if (num_retry_per_server != 1)
+                request.set_retry(true);    
             auto status = server->stub->get(&context, request, &response);
             if (!status.ok()) {
                 SPDLOG_LOGGER_WARN(logger , "Couldn't send request. RPC timeout {}s", timeout);
@@ -178,15 +182,12 @@ client::put(std::string key, std::string value, std::string &old_value) {
     putReq request;
     request.set_key(key);
     request.set_value(value);
+    request.set_retry(false);
     auto *_meta = request.mutable_meta();
     std::string addr = "localhost:"+resp_server_addr;
     _meta->set_addr(addr);
 
     reqStatus response;
-
-    ClientContext context;
-    auto deadline = std::chrono::system_clock::now() + std::chrono::seconds(timeout);
-    context.set_deadline(deadline);
 
     int num_retry_per_server, num_retry_per_key;
     ServerConfig *server;
@@ -194,13 +195,22 @@ client::put(std::string key, std::string value, std::string &old_value) {
     num_retry_per_key = 0;
     while (num_retry_per_key < req_retry_limit_per_key) {
         // Always try a new server for better load distribution
+    
         server = getStub(key, true);
         num_retry_per_key++;
         SPDLOG_LOGGER_INFO(logger, "Connecting to server {} for key {}", server->addr, key);
         num_retry_per_server = 0;
         while (num_retry_per_server < req_retry_limit_per_server) {
             // Submit query
-            num_retry_per_server++;
+            num_retry_per_server++; 
+        
+            // Create context every time you try a connection
+            ClientContext context;
+            auto deadline = std::chrono::system_clock::now() + std::chrono::seconds(timeout);
+            context.set_deadline(deadline);
+            SPDLOG_LOGGER_WARN (logger, "Retry No: {}, Max Retries: {}", num_retry_per_server, req_retry_limit_per_key);
+            if (num_retry_per_server != 1)
+                request.set_retry(true);
             auto status = server->stub->put(&context, request, &response);
             if (!status.ok()) {
                 SPDLOG_LOGGER_WARN(logger , "Couldn't send request. RPC timeout {}s", timeout);
@@ -211,7 +221,7 @@ client::put(std::string key, std::string value, std::string &old_value) {
 
             // Wait for response
             std::unique_lock<std::mutex> lock(lock_for_rcvd_resp);
-            condVar.wait_for(lock, std::chrono::milliseconds(500), [this]{ return rcvd_resp.load(); });
+            condVar.wait_for(lock, std::chrono::milliseconds(1000), [this]{ return rcvd_resp.load(); });
             if (rcvd_resp.load()) {
                 rcvd_resp.store(false);
                 value = this->value;

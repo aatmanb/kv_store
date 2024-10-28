@@ -44,7 +44,7 @@ namespace key_value_store {
  
     private: 
         int id;
-	const char *db_name;
+      	const char *db_name;
         std::unique_ptr<DatabaseUtils> db_utils;
 
         std::atomic<bool> is_tail;
@@ -121,5 +121,6 @@ namespace key_value_store {
         std::shared_ptr<spdlog::logger> logger;
 
         void printGrpcStatus(grpc::Status status);
+        bool requestInQueue(Request req);
     };
 }

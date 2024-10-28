@@ -135,6 +135,7 @@ namespace key_value_store {
         //COUT << addr <<  " GET CALLED!!" << std::endl;
         Request req = Request(*request);
         try {
+            SPDLOG_LOGGER_DEBUG(logger, "GET: Is it Retry?: {}", request->retry());
             get_thread.post(std::bind(&kv_storeImpl2::get_process, this, req));
             response->set_status(KV_GET_SUCCESS);
         } catch (const std::exception& e) {
@@ -195,7 +196,13 @@ namespace key_value_store {
     void kv_storeImpl2::put_process(Request req) {
         SPDLOG_LOGGER_DEBUG(logger, "is_head: {}, received put() request", is_head.load());
 	    COUT << "HEAD: " << is_head.load() << ", received put() request\n";
-	    if (is_head.load()) {
+        if (is_head.load()) {
+            // Check if it is a retry request
+            if (req.retry) {
+                // If it is in the queue already, return
+                if(requestInQueue(req))
+                    return;
+            }
             commit_thread.post(std::bind(&kv_storeImpl2::commit_process, this, req));
         }
         else {
@@ -205,6 +212,7 @@ namespace key_value_store {
 	        // TODO: response->set_status(KV_PUT_RECEIVED);
 	        // TODO: Store it in the db here
 	        // Prepare the forwarding request
+            //SPDLOG_LOGGER_DEBUG (logger, "key: {}, value: {}, addr: {}", req.key, req.value, req.addr);
 	        ClientContext _context;
             fwdPutReq _req = req.rpc_fwdPutReq();
 	        //fwdPutReq _req;
@@ -216,6 +224,9 @@ namespace key_value_store {
 	        empty _resp;
             auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
             _context.set_deadline(deadline);
+            //SPDLOG_LOGGER_DEBUG (logger, "Retry value: {}", req.retry);
+            //SPDLOG_LOGGER_DEBUG (logger, "Retry in _req: {}", _req.retry);
+            SPDLOG_LOGGER_DEBUG (logger, "Put forwarded to HEAD");
 	        Status status = head_stub->fwdPut(&_context, _req, &_resp);
         }
     }
@@ -233,6 +244,12 @@ namespace key_value_store {
 	    //COUT << addr << " received fwdPutReq\n";
         assert(is_head.load());
 	    Request req = Request(*request);
+        //SPDLOG_LOGGER_DEBUG (logger, "Committing key: {}, value: {}, for client: {}", req.key, req.value, req.addr);
+        //SPDLOG_LOGGER_DEBUG (logger, "Is it Retry?: {}", req.retry);           
+        // Check if it is a retry request
+        if (req.retry)
+            if (requestInQueue(req))
+               return Status::OK;
         commit_thread.post(std::bind(&kv_storeImpl2::commit_process, this, req));
 	    return Status::OK;
     }
@@ -424,7 +441,6 @@ namespace key_value_store {
         } else {
             tail_stub = kv_store::NewStub(grpc::CreateChannel(tail_addr, grpc::InsecureChannelCredentials()));
         }
-        
         get_thread.start();
         commit_thread.start();
         ack_thread.start();
@@ -536,6 +552,8 @@ namespace key_value_store {
             // auto value = partition->get(req.key);
             //COUT << req.key << "\n";
             auto value = db_utils->get_value(req.key.c_str());
+            //SPDLOG_LOGGER_DEBUG (logger, "Processing client get() reqeust");
+            //SPDLOG_LOGGER_DEBUG (logger, "GET: Client: {}, Key: {}, Value: {}", req.addr, req.key, value);
             _req.set_value(value);
             if (value == "") {
                 _req.set_status(KV_GET_FAILED);
@@ -556,6 +574,8 @@ namespace key_value_store {
             // auto partition = part_mgr->get_partition(req.key);
             // auto old_value = partition->put(req.key, req.value);
             auto old_value = db_utils->put_value(req.key.c_str(), req.value.c_str());
+            //SPDLOG_LOGGER_DEBUG (logger, "Processing client put() request");
+            //SPDLOG_LOGGER_DEBUG (logger, "PUT: Client: {}, Key: {}, Old_value: {}, New Value: {}", req.addr, req.key, old_value, req.value);
 
             _req.set_old_value(old_value);
             if (old_value == "") {
@@ -589,5 +609,22 @@ namespace key_value_store {
     
     void kv_storeImpl2::printGrpcStatus(grpc::Status status) {
         SPDLOG_LOGGER_CRITICAL(logger, "gRPC called failed.\nError message: {}\nError details: {}", status.error_message(), status.error_details());
+    }
+
+    bool kv_storeImpl2::requestInQueue(Request req) {
+        ThreadSafeQueue<Request> tmp_queue;
+        bool found = false;
+        SPDLOG_LOGGER_DEBUG (logger, "Called!");
+        while (!sent_queue.isEmpty()) {
+            Request curr_req = sent_queue.dequeue();
+            if (req.identicalRequests(curr_req) && req.type == request_t::PUT) {
+                found = true;
+                SPDLOG_LOGGER_DEBUG (logger, "Req. addr: {}, Req. key: {}, Req. value: {}", req.addr, req.key, req.value);
+            }
+            SPDLOG_LOGGER_DEBUG (logger, "Found?: {}", found);
+            tmp_queue.enqueue(curr_req);
+        }
+        sent_queue = std::move(tmp_queue);
+        return found;
     }
 }

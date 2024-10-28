@@ -16,12 +16,14 @@ message putAck {
 message getReq {
 	string key = 1;
     clientMetaData meta = 2;
+    bool retry = 3;
 }
 
 message putReq {
 	string key = 1;
 	string value = 2;
     clientMetaData meta = 3;
+    bool retry = 4;
 }
 
 message reqStatus {
@@ -34,6 +36,7 @@ message fwdGetReq {
 
 message fwdPutReq {
     putReq req = 1;
+    bool retry = 2;
 }
 
 message notifyFailureReq {
