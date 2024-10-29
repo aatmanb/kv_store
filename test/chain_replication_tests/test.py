@@ -169,6 +169,7 @@ def startClients(args):
         cmd += ' ' + f'--test-type={args.test_type}'
         cmd += ' ' + f'--top-dir={args.top_dir}'
         cmd += ' ' + f'--log-dir={args.log_dir}'
+        cmd += ' ' + f'--num-keys={args.num_keys}'
         
         if (args.vk_ratio != 0):  
             cmd += ' ' + f'--vk_ratio={args.vk_ratio}'
@@ -240,7 +241,7 @@ def startKiller(config_file, clean=1, strategy='random'):
         return process
 
 def manualKillServers():
-    wait_time = 6.2
+    wait_time = 1
     time.sleep(wait_time)
 
     global server_processes
@@ -274,6 +275,7 @@ if __name__ == "__main__":
     parser.add_argument('--master-port', type=str, default='50000', help='master port')
     parser.add_argument('--skew', action='store_true')
     parser.add_argument('--vk_ratio', type=int, default=0, help='ratio of value to key lenght')
+    parser.add_argument('--num-keys', type=int, default=60, help='number of gets to put and get in sanity test')
 
 
     parser.add_argument('--only-clients', action='store_true')
@@ -301,7 +303,7 @@ if __name__ == "__main__":
             print(f"An unexpected exception occured: {e}")
             terminateTest()
             
-        time.sleep(45)
+        time.sleep(30)
 
     # startLoadMeasurement(log_dir, master_processes, server_processes)
 
@@ -312,12 +314,14 @@ if __name__ == "__main__":
             print(f"An unexpected exception occured: {e}")
             terminateTest()
 
+    # if args.test_type == 'availability':
+    manualKillServers()
+
+    if (not args.only_service):
         waitToFinish()
     else:
         kill = input("Press <enter> when you want to terminate the service: ")
 
-    # if args.test_type == 'availability':
-    # manualKillServers()
 
     print("Test finished. Terminating service")
     # wait for sometime to flush the stdout buffers to the log file

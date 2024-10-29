@@ -153,13 +153,14 @@ int kv739_put(const std::string key, const std::string value, std::string &old_v
         return status;
     }
 
-    //std::cout << __FILE__ << "[" << __LINE__ << "]" << "calling put()" << std::endl;
-    //std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
-    //std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
+    std::cout << __FILE__ << "[" << __LINE__ << "]" << "calling put()" << std::endl;
+    std::cout << __FILE__ << "[" << __LINE__ << "]" << "key: " << key << std::endl;
+    std::cout << __FILE__ << "[" << __LINE__ << "]" << "value: " << value << std::endl;
 
     try {
         status = client_instance->put(key, value, old_value);
     } catch (std::exception &e) {
+        COUT << std::endl;
         std::cerr << __FILE__ << "[" << __LINE__ << "]" << "Could not perform put(): " << e.what() << std::endl;
     }
     

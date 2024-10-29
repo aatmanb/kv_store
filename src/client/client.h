@@ -26,7 +26,7 @@
 #include "spdlog/include/spdlog/spdlog.h"
 #include "spdlog/include/spdlog/sinks/basic_file_sink.h"
 
-struct ServerConfig {
+class ServerConfig {
 public:
     std::string addr;
     std::unique_ptr<kv_store::Stub> stub;
@@ -35,6 +35,10 @@ public:
         addr(_addr),
         stub(std::move(_stub))
         {}
+    
+    ~ServerConfig () {
+        stub.reset();
+    }
 };
 
 class client {
@@ -49,6 +53,7 @@ public:
 
     // std::unique_ptr<kv_store::Stub> createStub(const std::string& port);
     ServerConfig* getStub(const std::string& key, bool retry=false);
+    ServerConfig* getStub(PartitionConfig *partition);
 
     int id;
 
@@ -78,8 +83,8 @@ private:
 
     std::unordered_map<std::string, int, CustomHash> key_to_partition;
 
-    const int req_retry_limit_per_server = 5;
-    const int req_retry_limit_per_key = 10;
+    const int req_retry_limit_per_server = 2;
+    const int req_retry_limit_per_key = 2;
     
     std::condition_variable condVar;
     std::mutex lock_for_rcvd_resp; 

@@ -46,18 +46,19 @@ client::client(int _id, int timeout, const std::string& config_file, const std::
     SPDLOG_LOGGER_INFO(logger , "parsing config file");
     partitions = parseConfigFile(config_file); 
     num_partitions = partitions.size(); 
-    SPDLOG_LOGGER_INFO(logger , "number of partitions: ", num_partitions);
+    SPDLOG_LOGGER_INFO(logger , "number of partitions: {}", num_partitions);
     std::cout << "Number of partitions: " << num_partitions << std::endl;
 
     SPDLOG_LOGGER_INFO(logger , "Establishing gRPC channels and setting up stubs");
     std::cout << "Establishing gRPC channels and setting up stubs" << std::endl;
     // establish a channel corresponding to each stub
     for (int i=0; i<num_partitions; i++) {
-        std::string addr = "localhost:" + partitions[i].getServer();
-        SPDLOG_LOGGER_INFO(logger , "establishing channel with server {}" , addr);
-        std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(addr, grpc::InsecureChannelCredentials());
-        SPDLOG_LOGGER_TRACE(logger , "creating stub");
-        server_configs.push_back(new ServerConfig(addr, kv_store::NewStub(channel)));
+        server_configs.push_back(getStub(&partitions[i]));
+        //std::string addr = partitions[i].getServer();
+        //SPDLOG_LOGGER_INFO(logger , "establishing channel with server {}" , addr);
+        //std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(addr, grpc::InsecureChannelCredentials());
+        //SPDLOG_LOGGER_TRACE(logger , "creating stub");
+        //server_configs.push_back(new ServerConfig(addr, kv_store::NewStub(channel)));
     }
      
     SPDLOG_LOGGER_INFO(logger , "Starting response server");
@@ -155,20 +156,21 @@ client::get(std::string key, std::string &value) {
 
             // Wait for response
             std::unique_lock<std::mutex> lock(lock_for_rcvd_resp);
-            condVar.wait_for(lock, std::chrono::milliseconds(500), [this]{ return rcvd_resp.load(); });
+            condVar.wait_for(lock, std::chrono::seconds(timeout), [this]{ return rcvd_resp.load(); });
             if (rcvd_resp.load()) {
                 rcvd_resp.store(false);
                 value = this->value;
                 return this->status;
             }
             else {
-                SPDLOG_LOGGER_WARN(logger, "Response timeout {}ms", 500);
+                SPDLOG_LOGGER_WARN(logger, "Response timeout {}s", timeout);
             }
         }
         SPDLOG_LOGGER_WARN(logger , "Retries limit reached for server {}", server->addr);
     }
 
     SPDLOG_LOGGER_CRITICAL(logger , "Retries limit reached for all servers in config. We should never see this!!");
+    std::exit(1);
     return -1;
 }
 
@@ -208,7 +210,7 @@ client::put(std::string key, std::string value, std::string &old_value) {
             ClientContext context;
             auto deadline = std::chrono::system_clock::now() + std::chrono::seconds(timeout);
             context.set_deadline(deadline);
-            SPDLOG_LOGGER_WARN (logger, "Retry No: {}, Max Retries: {}", num_retry_per_server, req_retry_limit_per_key);
+            SPDLOG_LOGGER_WARN (logger, "Retry No: {}, Max Retries: {}", num_retry_per_server, req_retry_limit_per_server);
             if (num_retry_per_server != 1)
                 request.set_retry(true);
             auto status = server->stub->put(&context, request, &response);
@@ -221,32 +223,35 @@ client::put(std::string key, std::string value, std::string &old_value) {
 
             // Wait for response
             std::unique_lock<std::mutex> lock(lock_for_rcvd_resp);
-            condVar.wait_for(lock, std::chrono::milliseconds(1000), [this]{ return rcvd_resp.load(); });
+            condVar.wait_for(lock, std::chrono::seconds(timeout), [this]{ return rcvd_resp.load(); });
             if (rcvd_resp.load()) {
                 rcvd_resp.store(false);
                 value = this->value;
                 return this->status;
             }
             else {
-                SPDLOG_LOGGER_WARN(logger, "Response timeout {}ms", 500);
+                SPDLOG_LOGGER_WARN(logger, "Response timeout {}s", timeout);
             }
         }
         SPDLOG_LOGGER_WARN(logger , "Retries limit reached for server {}", server->addr);
     }
 
     SPDLOG_LOGGER_CRITICAL(logger , "Retries limit reached for all servers in config. We should never see this!!");
+    std::exit(1);
     return -1;
 }
 
 ServerConfig* 
 client::createStub(int port) {
     std::string addr = "localhost:" + std::to_string(port);
+    SPDLOG_LOGGER_DEBUG(logger, "creating channel with server {}", addr);
     std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(addr, grpc::InsecureChannelCredentials());
     return new ServerConfig(addr, kv_store::NewStub(channel));
 }
 
 ServerConfig*
 client::createStub(const std::string& addr) {
+    SPDLOG_LOGGER_DEBUG(logger, "creating channel with server {}", addr);
     std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(addr, grpc::InsecureChannelCredentials());
     return new ServerConfig(addr, kv_store::NewStub(channel));
 }
@@ -266,16 +271,23 @@ ServerConfig*
 client::getStub(const std::string& key, bool retry) {
     CustomHash hash;
     int partition_id = hash(key) % num_partitions;
-    
+    SPDLOG_LOGGER_DEBUG(logger, "partition_id: {}", partition_id); 
     if (retry) {
+        SPDLOG_LOGGER_DEBUG(logger, "getting new stub"); 
         delete server_configs[partition_id];
-        PartitionConfig partition = partitions[partition_id];
-        ServerConfig *config = createStub(std::stoi(partition.getServer()));
+        SPDLOG_LOGGER_DEBUG(logger, "deleted previous config"); 
+        PartitionConfig *partition = &(partitions[partition_id]);
+        ServerConfig *config = createStub(partition->getServer());
         server_configs[partition_id] = config;
     }
 
     return server_configs[partition_id];
-} 
+}
+
+ServerConfig*
+client::getStub(PartitionConfig *partition) {
+    return createStub(partition->getServer());
+}
 
 
 KVResponseService::KVResponseService(std::atomic<bool> *_rcvd_resp, int *_status, std::string *_value, std::condition_variable *_condVar, std::shared_ptr<spdlog::logger> _logger):

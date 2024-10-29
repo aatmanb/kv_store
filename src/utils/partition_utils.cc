@@ -32,7 +32,7 @@ PartitionConfig::init() {
 }
 
 void
-PartitionConfig::addServer(std::string& server) {
+PartitionConfig::addServer(std::string server) {
     servers.push_back(server);
 }
 
@@ -40,6 +40,9 @@ std::string
 PartitionConfig::getServer() {
     std::string server = servers[current_server_idx];
     current_server_idx++;
+    if (current_server_idx == servers.size()) {
+        current_server_idx = 0; // loopback to the start
+    }
 
     return server;
 } 

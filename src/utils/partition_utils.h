@@ -10,7 +10,7 @@ public:
     PartitionConfig(int _id);
     
     void init();
-    void addServer(std::string& server);
+    void addServer(std::string server);
     std::string getServer();
 
     inline const std::vector<std::string>& get_servers() const {

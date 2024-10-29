@@ -62,8 +62,7 @@ std::vector<PartitionConfig> parseConfigFile(const std::string& config_file) {
         std::getline(ss, port, ',');
 
         partition_id = std::stoi(partition_id_str);
-
-        partitions[partition_id].addServer(port);
+        partitions[partition_id].addServer("localhost:"+port);
     }
 
     file.close();

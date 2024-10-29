@@ -195,7 +195,7 @@ namespace key_value_store {
 
     void kv_storeImpl2::put_process(Request req) {
         SPDLOG_LOGGER_DEBUG(logger, "is_head: {}, received put() request", is_head.load());
-	    COUT << "HEAD: " << is_head.load() << ", received put() request\n";
+        COUT << "HEAD: " << is_head.load() << ", received put() request\n";
         if (is_head.load()) {
             // Check if it is a retry request
             if (req.retry) {
@@ -241,6 +241,7 @@ namespace key_value_store {
     }
 
     grpc::Status kv_storeImpl2::fwdPut(ServerContext* context, const fwdPutReq* request, empty* response) {
+        SPDLOG_LOGGER_DEBUG(logger, "received fwdPutReq");
 	    //COUT << addr << " received fwdPutReq\n";
         assert(is_head.load());
 	    Request req = Request(*request);
@@ -394,7 +395,7 @@ namespace key_value_store {
         put_thread.start();
         get_thread.start();
 
-        SPDLOG_LOGGER_DEBUG(logger, "reconfiguration done. New tail is: ", tail_addr);
+        SPDLOG_LOGGER_DEBUG(logger, "reconfiguration done. New tail is: {}", tail_addr);
         COUT << "Reconfiguration is successful. New tail is: " << tail_addr << "\n";
 
         return grpc::Status::OK;
@@ -413,12 +414,11 @@ namespace key_value_store {
         return grpc::Status::OK;
     }
 
-    grpc::Status kv_storeImpl2::notifyTailFailure(grpc::ServerContext* context,
-                const tailFailureNotification* request, empty *response) {
-        ack_thread.pause();
-        commit_thread.pause();
+    grpc::Status kv_storeImpl2::notifyTailFailure(grpc::ServerContext* context, const tailFailureNotification* request, empty *response) {
         SPDLOG_LOGGER_DEBUG(logger, "{}: notifyTailFailure", addr);
         COUT << addr << ": notifyTailFailure\n";
+        ack_thread.pause();
+        commit_thread.pause();
         get_thread.pause();
         tail_addr = request->new_tail();
         tail_stub.reset();
@@ -612,14 +612,14 @@ namespace key_value_store {
     }
 
     bool kv_storeImpl2::requestInQueue(Request req) {
+        SPDLOG_LOGGER_DEBUG (logger, "Checking for duplicate request");
         ThreadSafeQueue<Request> tmp_queue;
         bool found = false;
-        SPDLOG_LOGGER_DEBUG (logger, "Called!");
         while (!sent_queue.isEmpty()) {
             Request curr_req = sent_queue.dequeue();
             if (req.identicalRequests(curr_req) && req.type == request_t::PUT) {
                 found = true;
-                SPDLOG_LOGGER_DEBUG (logger, "Req. addr: {}, Req. key: {}, Req. value: {}", req.addr, req.key, req.value);
+                SPDLOG_LOGGER_DEBUG (logger, "Current request is duplicate. Req. addr: {}, Req. key: {}, Req. value: {}", req.addr, req.key, req.value);
             }
             SPDLOG_LOGGER_DEBUG (logger, "Found?: {}", found);
             tmp_queue.enqueue(curr_req);

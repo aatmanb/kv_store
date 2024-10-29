@@ -101,6 +101,7 @@ namespace key_value_store {
 
             // Notify all other servers about the new tail
             for (int i=idx-1; i>=0; i--) {
+                SPDLOG_LOGGER_DEBUG(logger, "sending notifyTailFailure to server {}", servers[i]);
                 tailFailureNotification req1;
                 req1.set_new_tail(new_tail);
                 grpc::ClientContext ctx;
