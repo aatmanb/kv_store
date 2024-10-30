@@ -147,6 +147,7 @@ namespace key_value_store {
     }
 
     void kv_storeImpl2::get_process(Request req) {
+        SPDLOG_LOGGER_DEBUG(logger, "is_tail: {}, received get() request {}", is_tail.load(), req.dumpRequestInfo());
         if (is_tail.load()) {
             resp_thread.post(std::bind(&kv_storeImpl2::serveRequest, this, req));
         } else {
@@ -194,7 +195,7 @@ namespace key_value_store {
     }
 
     void kv_storeImpl2::put_process(Request req) {
-        SPDLOG_LOGGER_DEBUG(logger, "is_head: {}, received put() request", is_head.load());
+        SPDLOG_LOGGER_DEBUG(logger, "is_head: {}, received put() request {}", is_head.load(), req.dumpRequestInfo());
         COUT << "HEAD: " << is_head.load() << ", received put() request\n";
         if (is_head.load()) {
             // Check if it is a retry request
@@ -274,6 +275,7 @@ namespace key_value_store {
         SPDLOG_LOGGER_DEBUG(logger, "predecessor has failed. reconfiguring...");
         COUT << "Predecessor has failed. Reconfiguring...\n";
         bool was_head = request->washead();
+        prev_addr = request->newpred();
         ack_thread.pause();
         
         if (was_head) {
@@ -293,22 +295,31 @@ namespace key_value_store {
             COUT << "Successfully changed head to current node\n";
             put_thread.start();
         } else {
-            prev_addr = request->newpred();
+            SPDLOG_LOGGER_DEBUG(logger, "New predecessor is {}", prev_addr);
             prev_stub = kv_store::NewStub(grpc::CreateChannel(prev_addr, grpc::InsecureChannelCredentials()));
 
             grpc::ClientContext ctx;
             notifySuccessorFailureReq req;
             req.set_newsuccessor(addr);
             req.set_wastail(false);
+            req.set_lastputreqvalid(false);
             if (!sent_queue.isEmpty()) {
+                SPDLOG_LOGGER_DEBUG(logger, "sending last received put req to the new predecessor");
                 printSentQState();
+                SPDLOG_LOGGER_DEBUG(logger, "sent_queue.size(): {}", sent_queue.size());
                 putReq last_put_req = sent_queue.front().value().rpc_putReq();
                 req.set_allocated_lastputreq(&last_put_req);
+                req.set_lastputreqvalid(true);
             }
+            SPDLOG_LOGGER_TRACE(logger, "lastputreq: {}", Request(req.lastputreq()).dumpRequestInfo());
             empty resp;
             auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
             ctx.set_deadline(deadline);
-            prev_stub->notifySuccessorFailure(&ctx, req, &resp);
+            grpc::Status status = prev_stub->notifySuccessorFailure(&ctx, req, &resp);
+            if (!status.ok()) {
+                printGrpcStatus(status);
+                std::exit(1);
+            }
         }
         SPDLOG_LOGGER_DEBUG(logger, "reconfiguration done");
         COUT << "Reconfiguration done...\n";
@@ -346,10 +357,11 @@ namespace key_value_store {
         } else {
             // Modify address and stub for new successor
             next_addr = request->newsuccessor();
+            SPDLOG_LOGGER_DEBUG(logger,"new successor is {}", next_addr);
             next_stub.reset();
             next_stub = kv_store::NewStub(grpc::CreateChannel(next_addr, grpc::InsecureChannelCredentials()));
             auto last_put_req = request->lastputreq();
-            process_lost_updates(last_put_req);
+            process_lost_updates(last_put_req, !request->lastputreqvalid());
         }
         SPDLOG_LOGGER_DEBUG(logger, "reconfiguration done");
         COUT << "Reconfiguration done...\n";
@@ -465,37 +477,48 @@ namespace key_value_store {
         }
     }
 
-    void kv_storeImpl2::process_lost_updates(const putReq& last_req) {
+    void kv_storeImpl2::process_lost_updates(const putReq& last_req, bool successor_queue_empty) {
         SPDLOG_LOGGER_DEBUG(logger, "sending lost updates to the new successor");
         COUT << "sending lost updates to the new successor\n";
         printSentQState();
+        SPDLOG_LOGGER_DEBUG(logger, "sent_queue.size(): {}", sent_queue.size());
+        SPDLOG_LOGGER_TRACE(logger, "successor_queue_empty: {}", successor_queue_empty);
         if (sent_queue.isEmpty()) {
+            assert(successor_queue_empty);
             // TODO: assert that last_req is also empty/null because if this node's sent_queue is empty then it's successor's  sent_queue must also be empty
             return;
         }
         ThreadSafeQueue<Request> tmp_queue;
         bool found = false;
         Request _req = Request(last_req);
-        while (!found) {
-            auto local_req = sent_queue.tryDequeue();
-            if (!local_req.has_value()) {
-                SPDLOG_LOGGER_CRITICAL(logger, "We come here if there is no request in sent queue which is identical to last_req. This is not possible");
-                std::exit(1);
-            }
-            
-            tmp_queue.enqueue(local_req.value());
-            //const putReq req = val.value().rpc_putReq();
-            if (_req.identicalRequests(local_req.value())) {
-                // Found a match. Send all the requests afer this request
-                SPDLOG_LOGGER_DEBUG(logger, "Found identical request");
-                found = true;
+        SPDLOG_LOGGER_DEBUG(logger, "last request in the new successor {}", _req.dumpRequestInfo());
+
+        // If new successor's sent queue is empty, do not try to find an identical request. Instead just send everything in your queue.
+        if (!successor_queue_empty) {
+            while (!found) {
+                auto local_req_optional = sent_queue.tryDequeue();
+                if (!local_req_optional.has_value()) {
+                    SPDLOG_LOGGER_CRITICAL(logger, "We come here if there is no request in sent queue which is identical to last_req. This is not possible");
+                    std::exit(1);
+                }
+                auto local_req = local_req_optional.value();
+                SPDLOG_LOGGER_DEBUG(logger, "local_req: {}", local_req.dumpRequestInfo());
+
+                tmp_queue.enqueue(local_req);
+                //const putReq req = val.value().rpc_putReq();
+                if (_req.identicalRequests(local_req)) {
+                    // Found a match. Send all the requests afer this request
+                    SPDLOG_LOGGER_DEBUG(logger, "Found identical request");
+                    found = true;
+                }
             }
         }
 
         while(true) {
+            SPDLOG_LOGGER_DEBUG(logger, "Sending all the remaining requests in sent_queue to the new successor");
             auto local_req = sent_queue.tryDequeue();
             if (!local_req.has_value()) {
-                SPDLOG_LOGGER_DEBUG(logger, "Sent the remaining requests in sent_queue to the new successor");
+                SPDLOG_LOGGER_DEBUG(logger, "All the remaining requests in sent_queue have been sent to the new successor");
                 sent_queue = std::move(tmp_queue);
                 return;
             }
@@ -516,13 +539,12 @@ namespace key_value_store {
     }
 
     void kv_storeImpl2::commit_process(Request req) {
+        SPDLOG_LOGGER_DEBUG(logger, "is_tail: {},  received commit from predecessor {} for request {}", is_tail.load(), prev_addr, req.dumpRequestInfo());
         // TODO:
         // 1. Commit to own database
         local_map.insert(req.key, req.value);
         sent_queue.enqueue(req);
-        req.dumpRequestInfo();
-        SPDLOG_LOGGER_DEBUG(logger, "sent_queue.size(): {}", sent_queue.size());
-        printSentQState();
+        SPDLOG_LOGGER_TRACE(logger, "sent_queue.size(): {}", sent_queue.size());
         if (!is_tail.load()) {
             /**
              * Break this into 2 steps:
@@ -542,7 +564,14 @@ namespace key_value_store {
     }
 
     void kv_storeImpl2::ack_process(Request req) {
-        Request curr_req = sent_queue.dequeue();
+        auto curr_req_optional = sent_queue.tryDequeue();
+        if (!curr_req_optional.has_value()) {
+            SPDLOG_LOGGER_CRITICAL(logger, "Cannot receive ack for a request not in sent queue");
+            std::exit(1);
+        }
+        auto curr_req = curr_req_optional.value();
+        SPDLOG_LOGGER_DEBUG(logger, "is_head: {},  received ack from successor {} for request {}", is_head.load(), next_addr, curr_req.dumpRequestInfo());
+        SPDLOG_LOGGER_TRACE(logger, "sent_queue.size(): {}", sent_queue.size());
 
         if (!req.identicalRequests(curr_req)) {
             req.dumpRequestInfo();
@@ -550,17 +579,13 @@ namespace key_value_store {
             assert(false);
         }
 
-        if (!is_head) {
+        if (!is_head.load()) {
 	        ClientContext _context;
             putAck _req = curr_req.rpc_putAck();
             empty _resp;
             auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
             _context.set_deadline(deadline);
             prev_stub->ack(&_context, _req, &_resp); 
-        }
-        else {
-            SPDLOG_LOGGER_DEBUG(logger, "head received ack");
-            COUT << "head received ack" << std::endl;
         }
     }
 
@@ -654,7 +679,8 @@ namespace key_value_store {
     }
     
     void kv_storeImpl2::printGrpcStatus(grpc::Status status) {
-        SPDLOG_LOGGER_CRITICAL(logger, "gRPC called failed.\nError message: {}\nError details: {}", status.error_message(), status.error_details());
+        SPDLOG_LOGGER_CRITICAL(logger, "gRPC called failed");
+        std::cout << "Code: " << status.error_code() << "\nError message: " << status.error_message() << "\nError details: " << status.error_details() << std::endl;
     }
 
     bool kv_storeImpl2::requestInQueue(Request req) {
@@ -676,10 +702,12 @@ namespace key_value_store {
         
     void kv_storeImpl2::printSentQState() {
         ThreadSafeQueue<Request> tmp_queue;
+        int idx = 0;
         while (!sent_queue.isEmpty()) {
             auto _req = sent_queue.tryDequeue().value();
             tmp_queue.enqueue(_req);
-            _req.dumpRequestInfo();
+            SPDLOG_LOGGER_DEBUG (logger, "idx[{}]: {}", idx, _req.dumpRequestInfo());
+            idx++;
         }
         sent_queue = std::move(tmp_queue);
     }

@@ -240,19 +240,19 @@ def startKiller(config_file, clean=1, strategy='random'):
         process = subprocess.Popen(killer_process_cmd, shell=True, stdout=f, stderr=f, preexec_fn=os.setsid)
         return process
 
-def manualKillServers():
-    wait_time = 1
+def manualKillServers(choice, wait_time = 1):
     time.sleep(wait_time)
 
     global server_processes
-    print ('Killing tail server')
-    choice = 0
     node = None
     if (choice == 0):
+        print ('Killing tail server')
         node = server_processes[-1]
     elif (choice == 1):
+        print ('Killing head server')
         node = server_processes[0]
     else:
+        print ('Killing a random middle server')
         node = random.choice(server_processes[1:-1])
 
     if (node != None):
@@ -315,7 +315,7 @@ if __name__ == "__main__":
             terminateTest()
 
     # if args.test_type == 'availability':
-    manualKillServers()
+    manualKillServers(0)
 
     if (not args.only_service):
         waitToFinish()
@@ -325,7 +325,7 @@ if __name__ == "__main__":
 
     print("Test finished. Terminating service")
     # wait for sometime to flush the stdout buffers to the log file
-    time.sleep(20)
+    time.sleep(10)
     terminateService()
     # for process in load_measurement_processes:
     #    terminateProcess(process)

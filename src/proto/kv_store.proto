@@ -56,6 +56,7 @@ message notifySuccessorFailureReq {
     string newSuccessor = 1;
     bool wasTail = 2;
     putReq lastPutReq = 3;
+    bool lastPutReqValid = 4;
 }
 
 message addTailNodeReq {

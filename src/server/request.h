@@ -1,4 +1,6 @@
 #include <string>
+#include <string>
+
 
 #include "kv_store.grpc.pb.h"
 #include "spdlog/include/spdlog/spdlog.h"
@@ -30,7 +32,7 @@ public:
     fwdPutReq rpc_fwdPutReq();
     putAck rpc_putAck();
     bool identicalRequests(Request r2);
-    void dumpRequestInfo();
+    std::string dumpRequestInfo();
 
     std::string addr;
     request_t type;

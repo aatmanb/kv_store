@@ -117,7 +117,9 @@ Request::identicalRequests(Request r2) {
            (key == r2.key) && (value == r2.value);
 }
 
-void
+std::string
 Request::dumpRequestInfo() {
-    std::cout << "Type: " << type << ", Client Addr: " << addr << ", key: " << key << ", value: " << value << std::endl; 
+    std::stringstream ss;
+    ss << "Type: " << req_type_name(type) << ", Client Addr: " << addr << ", key: " << key << ", value: " << value; 
+    return ss.str();
 }

@@ -144,6 +144,7 @@ client::get(std::string key, std::string &value) {
             ClientContext context;
             auto deadline = std::chrono::system_clock::now() + std::chrono::seconds(timeout);
             context.set_deadline(deadline);
+            SPDLOG_LOGGER_WARN (logger, "Retry No: {}, Max Retries: {}", num_retry_per_server, req_retry_limit_per_server);
             if (num_retry_per_server != 1)
                 request.set_retry(true);    
             auto status = server->stub->get(&context, request, &response);
@@ -271,11 +272,11 @@ ServerConfig*
 client::getStub(const std::string& key, bool retry) {
     CustomHash hash;
     int partition_id = hash(key) % num_partitions;
-    SPDLOG_LOGGER_DEBUG(logger, "partition_id: {}", partition_id); 
+    SPDLOG_LOGGER_TRACE(logger, "partition_id: {}", partition_id); 
     if (retry) {
-        SPDLOG_LOGGER_DEBUG(logger, "getting new stub"); 
+        SPDLOG_LOGGER_TRACE(logger, "getting new stub"); 
         delete server_configs[partition_id];
-        SPDLOG_LOGGER_DEBUG(logger, "deleted previous config"); 
+        SPDLOG_LOGGER_TRACE(logger, "deleted previous config"); 
         PartitionConfig *partition = &(partitions[partition_id]);
         ServerConfig *config = createStub(partition->getServer());
         server_configs[partition_id] = config;

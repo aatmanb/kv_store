@@ -152,12 +152,12 @@ namespace key_value_store {
                         COUT << "Detected failure of node: " << elem.first << "\n";
                     }
                 }
-                std::this_thread::sleep_for(std::chrono::seconds(health_check_interval));
             }
 
             for (auto& server: servers_to_remove) {
                 remove_node(server);
             }
+            std::this_thread::sleep_for(std::chrono::seconds(health_check_interval));
         }
     }
 
