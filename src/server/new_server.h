@@ -73,7 +73,7 @@ namespace key_value_store {
         grpc::Status put(grpc::ServerContext* context, const putReq* request, reqStatus* response) override;
         grpc::Status fail(grpc::ServerContext* context, const failCommand* request, empty* response) override;
         
-        std::unique_ptr<KVResponse::Stub> client_stub = nullptr;
+        //std::unique_ptr<KVResponse::Stub> client_stub = nullptr;
         
         // Internal RPCs
         grpc::Status fwdGet(grpc::ServerContext* context, const fwdGetReq* request, empty* response) override;
@@ -103,6 +103,10 @@ namespace key_value_store {
         Worker ack_thread;
 
         void serveRequest(Request &req);        
+        grpc::Status serveGetReq(Request &req);
+        grpc::Status servePutReq(Request &req);
+        std::unique_ptr<KVResponse::Stub> createClientStub(std::string addr);
+        
         void get_process(Request req);
         void put_process(Request req);
         void commit_process(Request req);

@@ -423,7 +423,8 @@ namespace key_value_store {
         tail_addr = request->new_tail();
         tail_stub.reset();
         if (addr == tail_addr) {
-            COUT << "Processing tail failure at successor\n";
+            SPDLOG_LOGGER_DEBUG(logger, "processing tail failure at predecessor");
+            COUT << "Processing tail failure at predecessor\n";
 
             // Modify stubs
             next_stub.reset();
@@ -444,21 +445,29 @@ namespace key_value_store {
         get_thread.start();
         commit_thread.start();
         ack_thread.start();
+        SPDLOG_LOGGER_DEBUG(logger, "reconfiguration is successful");
         COUT << "Reconfiguration is successful\n";
         return grpc::Status::OK;
     }
 
     void kv_storeImpl2::commit_sent_updates() {
+        grpc::Status status;
         while (true) {
-            auto req_opt = sent_queue.front();
+            auto req_opt = sent_queue.tryDequeue();
             if (!req_opt.has_value()) {
                 break;
             }
             auto req = req_opt.value();
-            auto old_value = db_utils->put_value(req.key.c_str(), req.value.c_str());
-            if (!is_head.load()) {
-                ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, req));
+            status = servePutReq(req);
+            if (!status.ok()) {
+                SPDLOG_LOGGER_CRITICAL(logger, "Response from server to client should never fail");
+                printGrpcStatus(status);
+                std::exit(1);
             }
+            //auto old_value = db_utils->put_value(req.key.c_str(), req.value.c_str());
+            //if (!is_head.load()) {
+            //    ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, req));
+            //}
         }
     }
 
@@ -536,65 +545,81 @@ namespace key_value_store {
 
     void kv_storeImpl2::serveRequest(Request &req) {
         assert(is_tail.load());
-
-        std::string client_addr = req.addr;
-        //COUT << "client_addr: " << client_addr << std::endl;
-        client_stub = KVResponse::NewStub(grpc::CreateChannel(client_addr, grpc::InsecureChannelCredentials()));
-        ClientContext _context;
-        respStatus _resp;
+        grpc::Status status;
 
         if (req.type == request_t::GET) {
-            //COUT << "Processing client get() request" << std::endl;
-            getResp _req;
-
-            // auto part_mgr = PartitionManager::get_instance();
-            // auto partition = part_mgr->get_partition(req.key);
-            // auto value = partition->get(req.key);
-            //COUT << req.key << "\n";
-            auto value = db_utils->get_value(req.key.c_str());
-            //SPDLOG_LOGGER_DEBUG (logger, "Processing client get() reqeust");
-            //SPDLOG_LOGGER_DEBUG (logger, "GET: Client: {}, Key: {}, Value: {}", req.addr, req.key, value);
-            _req.set_value(value);
-            if (value == "") {
-                _req.set_status(KV_GET_FAILED);
-            } else {
-                _req.set_status(KV_GET_SUCCESS);
-            }
-            
-            // Send response to client
-            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
-            _context.set_deadline(deadline);
-            Status status = client_stub->sendGetResp(&_context, _req, &_resp);
-            // Send ack to predecessor
-            //COUT << "Sent get response to client" << std::endl;
+            status = serveGetReq(req);
         } else if (req.type == request_t::PUT) {
-            //COUT << "Processing client put() request" << std::endl;
-            putResp _req;
-            // auto part_mgr = PartitionManager::get_instance();
-            // auto partition = part_mgr->get_partition(req.key);
-            // auto old_value = partition->put(req.key, req.value);
-            auto old_value = db_utils->put_value(req.key.c_str(), req.value.c_str());
-            //SPDLOG_LOGGER_DEBUG (logger, "Processing client put() request");
-            //SPDLOG_LOGGER_DEBUG (logger, "PUT: Client: {}, Key: {}, Old_value: {}, New Value: {}", req.addr, req.key, old_value, req.value);
-
-            _req.set_old_value(old_value);
-            if (old_value == "") {
-                _req.set_status(KV_PUT_SUCCESS);
-            } else {
-                _req.set_status(KV_UPDATE_SUCCESS);
-            }
-
-            // Send response to client
-            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
-            _context.set_deadline(deadline);
-            Status status = client_stub->sendPutResp(&_context, _req, &_resp);
-            // Send ack to predecessor
-            ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, req));
-            //COUT << "Sent put response to client" << std::endl;
+            status = servePutReq(req);
         } else {
             std::cerr << "Invalid request type" << std::endl;
             std::exit(1);
         }
+
+        if (!status.ok()) {
+            SPDLOG_LOGGER_CRITICAL(logger, "response from server to client should never fail");
+            printGrpcStatus(status);
+            std::exit(1);
+        }
+
+        if (req.type == request_t::PUT) { 
+            // Send ack to predecessor
+            ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, req));
+        }
+    }
+
+    grpc::Status kv_storeImpl2::serveGetReq(Request &req) {
+        assert(req.type == request_t::GET);
+        SPDLOG_LOGGER_DEBUG (logger, "Processing client get() request");
+        std::unique_ptr<KVResponse::Stub> client_stub = createClientStub(req.addr);
+        ClientContext _context;
+        respStatus _resp;
+
+        getResp _req;
+
+        auto value = db_utils->get_value(req.key.c_str());
+        _req.set_value(value);
+        if (value == "") {
+            _req.set_status(KV_GET_FAILED);
+        } else {
+            _req.set_status(KV_GET_SUCCESS);
+        }
+        
+        // Send response to client
+        auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
+        _context.set_deadline(deadline);
+        Status status = client_stub->sendGetResp(&_context, _req, &_resp);
+        return status;
+    }
+
+    grpc::Status kv_storeImpl2::servePutReq(Request &req) {
+        assert(req.type == request_t::PUT);
+        SPDLOG_LOGGER_DEBUG (logger, "Processing client put() request");
+        std::unique_ptr<KVResponse::Stub> client_stub = createClientStub(req.addr);
+        ClientContext _context;
+        respStatus _resp;
+        
+        putResp _req;
+        auto old_value = db_utils->put_value(req.key.c_str(), req.value.c_str());
+        //SPDLOG_LOGGER_DEBUG (logger, "Processing client put() request");
+        //SPDLOG_LOGGER_DEBUG (logger, "PUT: Client: {}, Key: {}, Old_value: {}, New Value: {}", req.addr, req.key, old_value, req.value);
+
+        _req.set_old_value(old_value);
+        if (old_value == "") {
+            _req.set_status(KV_PUT_SUCCESS);
+        } else {
+            _req.set_status(KV_UPDATE_SUCCESS);
+        }
+
+        // Send response to client
+        auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
+        _context.set_deadline(deadline);
+        Status status = client_stub->sendPutResp(&_context, _req, &_resp);
+        return status;
+    }
+
+    std::unique_ptr<KVResponse::Stub> kv_storeImpl2::createClientStub(std::string addr) {
+            return std::move(KVResponse::NewStub(grpc::CreateChannel(addr, grpc::InsecureChannelCredentials())));
     }
 
     grpc::Status kv_storeImpl2::heartBeat(grpc::ServerContext *context, const empty* request, empty *response) {
