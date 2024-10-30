@@ -83,4 +83,13 @@ public:
         std::lock_guard<std::mutex> lock(mtx);  // Lock the queue
         return queue.size();                    // Return the size of the queue
     }
+
+    //void print() {
+    //    std::lock_guard<std::mutex> lock(mtx);  // Lock the queue
+    //    std::queue<T> tmp_queue = queue;
+    //    while (!tmp_queue.empty()) {
+    //        auto _req = tmp_queue.pop();
+    //        _req.dumpRequestInfo();
+    //    }
+    //}
 };

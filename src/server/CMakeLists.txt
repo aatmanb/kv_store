@@ -1,14 +1,11 @@
 add_executable(server 
                 main.cpp
                 new_server.cpp
-                new_server.h
                 data.cpp
                 dbutils.h
                 singleton.h
                 partition_manager.h
-                thread_safe_queue.h
-                thread_safe_hashmap.h
-                request.h
+                request.cc
                 )
 
 # Include the directory for headers

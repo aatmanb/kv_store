@@ -82,6 +82,7 @@ namespace key_value_store {
 
             // Notify all other servers about the new head
             for (int i=2; i<servers.size(); i++) {
+                SPDLOG_LOGGER_DEBUG(logger, "sending notifyHeadFailure to server {}", servers[i]);
                 headFailureNotification req1;
                 req1.set_new_head(new_head);
                 grpc::ClientContext ctx;
@@ -117,6 +118,7 @@ namespace key_value_store {
             req.set_washead(false);
             grpc::ClientContext ctx;
             empty empty_response;
+            SPDLOG_LOGGER_DEBUG(logger, "sending notifyPredFailure to server {}", servers[idx+1]);
             node_to_conn_map[servers[idx+1]]->notifyPredFailure(&ctx, req, &empty_response);
         }
         
@@ -146,6 +148,7 @@ namespace key_value_store {
                     if (!status.ok()) {
                         servers_to_remove.push_back(elem.first);
                         SPDLOG_LOGGER_INFO(logger, "detected failure of node {}", elem.first);
+                        printGrpcStatus(status);
                         COUT << "Detected failure of node: " << elem.first << "\n";
                     }
                 }
@@ -198,6 +201,10 @@ namespace key_value_store {
             i++;
         }
         SPDLOG_LOGGER_INFO(logger, "configuration done");
+    }
+
+    void ReplicationManager::printGrpcStatus(grpc::Status status) {
+        SPDLOG_LOGGER_CRITICAL(logger, "gRPC called failed.\nError message: {}\nError details: {}", status.error_message(), status.error_details());
     }
 
 }

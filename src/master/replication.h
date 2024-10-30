@@ -58,5 +58,6 @@ namespace key_value_store {
 
         void configure(std::string &db_dir, std::string &config_path, std::shared_ptr<spdlog::logger> logger);
         void print_chain(std::vector<std::string> &chain);
+        void printGrpcStatus(grpc::Status status);
     };
 }

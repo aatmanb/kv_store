@@ -277,6 +277,7 @@ namespace key_value_store {
         ack_thread.pause();
         
         if (was_head) {
+            SPDLOG_LOGGER_DEBUG(logger, "predecessor was head. Changing head to current node");
             // Head has failed. Make current node the new head
             put_thread.pause();
             // Modify stubs
@@ -300,6 +301,7 @@ namespace key_value_store {
             req.set_newsuccessor(addr);
             req.set_wastail(false);
             if (!sent_queue.isEmpty()) {
+                printSentQState();
                 putReq last_put_req = sent_queue.front().value().rpc_putReq();
                 req.set_allocated_lastputreq(&last_put_req);
             }
@@ -347,14 +349,6 @@ namespace key_value_store {
             next_stub.reset();
             next_stub = kv_store::NewStub(grpc::CreateChannel(next_addr, grpc::InsecureChannelCredentials()));
             auto last_put_req = request->lastputreq();
-            // Notify new successor that its predecessor has failed
-            // ClientContext ctx;
-            // notifyPredFailureReq req;
-            // req.set_newpred(addr);
-            // req.set_washead(false);
-            // empty resp;
-            // next_stub->notifyPredFailure(&ctx, req, &resp);
-
             process_lost_updates(last_put_req);
         }
         SPDLOG_LOGGER_DEBUG(logger, "reconfiguration done");
@@ -472,29 +466,53 @@ namespace key_value_store {
     }
 
     void kv_storeImpl2::process_lost_updates(const putReq& last_req) {
+        SPDLOG_LOGGER_DEBUG(logger, "sending lost updates to the new successor");
+        COUT << "sending lost updates to the new successor\n";
+        printSentQState();
+        if (sent_queue.isEmpty()) {
+            // TODO: assert that last_req is also empty/null because if this node's sent_queue is empty then it's successor's  sent_queue must also be empty
+            return;
+        }
         ThreadSafeQueue<Request> tmp_queue;
         bool found = false;
-        while (true) {
-            auto val = sent_queue.tryDequeue();
-            if (!val.has_value()) {
-                break;
+        Request _req = Request(last_req);
+        while (!found) {
+            auto local_req = sent_queue.tryDequeue();
+            if (!local_req.has_value()) {
+                SPDLOG_LOGGER_CRITICAL(logger, "We come here if there is no request in sent queue which is identical to last_req. This is not possible");
+                std::exit(1);
             }
             
-            const putReq req = val.value().rpc_putReq();
-            if (found) {
-                ClientContext context;
-                empty _resp;
-                auto fwd_put_req = Request(req).rpc_fwdPutReq();
-                auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
-                context.set_deadline(deadline);
-                next_stub->commit(&context, fwd_put_req, &_resp);
-            }
-            if (Request(last_req).identicalRequests(req)) {
+            tmp_queue.enqueue(local_req.value());
+            //const putReq req = val.value().rpc_putReq();
+            if (_req.identicalRequests(local_req.value())) {
+                // Found a match. Send all the requests afer this request
+                SPDLOG_LOGGER_DEBUG(logger, "Found identical request");
                 found = true;
             }
-            tmp_queue.enqueue(val.value());
         }
-        sent_queue = std::move(tmp_queue);
+
+        while(true) {
+            auto local_req = sent_queue.tryDequeue();
+            if (!local_req.has_value()) {
+                SPDLOG_LOGGER_DEBUG(logger, "Sent the remaining requests in sent_queue to the new successor");
+                sent_queue = std::move(tmp_queue);
+                return;
+            }
+            
+            tmp_queue.enqueue(local_req.value());
+            
+            ClientContext context;
+            empty _resp;
+            auto fwd_put_req = local_req.value().rpc_fwdPutReq();
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
+            context.set_deadline(deadline);
+            next_stub->commit(&context, fwd_put_req, &_resp);
+        }
+
+        SPDLOG_LOGGER_CRITICAL(logger, "We should never return from here. return should be from inside the while loop");
+        std::exit(1);
+        return;
     }
 
     void kv_storeImpl2::commit_process(Request req) {
@@ -502,6 +520,9 @@ namespace key_value_store {
         // 1. Commit to own database
         local_map.insert(req.key, req.value);
         sent_queue.enqueue(req);
+        req.dumpRequestInfo();
+        SPDLOG_LOGGER_DEBUG(logger, "sent_queue.size(): {}", sent_queue.size());
+        printSentQState();
         if (!is_tail.load()) {
             /**
              * Break this into 2 steps:
@@ -651,5 +672,15 @@ namespace key_value_store {
         }
         sent_queue = std::move(tmp_queue);
         return found;
+    }
+        
+    void kv_storeImpl2::printSentQState() {
+        ThreadSafeQueue<Request> tmp_queue;
+        while (!sent_queue.isEmpty()) {
+            auto _req = sent_queue.tryDequeue().value();
+            tmp_queue.enqueue(_req);
+            _req.dumpRequestInfo();
+        }
+        sent_queue = std::move(tmp_queue);
     }
 }
