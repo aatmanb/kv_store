@@ -111,7 +111,7 @@ namespace key_value_store {
         void get_process(Request req);
         void put_process(Request req);
         void commit_process(Request req);
-        void ack_process(Request req);
+        void ack_process(Request req, bool skip_dequeue=false);
         /**
          * Resends lost updates in the case of failure of an intermediate node
          */

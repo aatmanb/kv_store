@@ -252,8 +252,9 @@ def manualKillServers(choice, wait_time = 1):
         print ('Killing head server')
         node = server_processes[0]
     else:
-        print ('Killing a random middle server')
         node = random.choice(server_processes[1:-1])
+        print (f'Killing server {node}')
+        
 
     if (node != None):
         terminateProcess(node)
@@ -275,7 +276,7 @@ if __name__ == "__main__":
     parser.add_argument('--master-port', type=str, default='50000', help='master port')
     parser.add_argument('--skew', action='store_true')
     parser.add_argument('--vk_ratio', type=int, default=0, help='ratio of value to key lenght')
-    parser.add_argument('--num-keys', type=int, default=60, help='number of gets to put and get in sanity test')
+    parser.add_argument('--num-keys', type=int, default=1000, help='number of gets to put and get in sanity test')
 
 
     parser.add_argument('--only-clients', action='store_true')

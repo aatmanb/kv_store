@@ -267,7 +267,7 @@ namespace key_value_store {
     grpc::Status kv_storeImpl2::ack(ServerContext* context, const putAck* request, empty* response) {
 	    //COUT << addr << " received ack\n";
         assert(!is_tail.load());
-        ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, Request(*request)));
+        ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, Request(*request), false));
         return Status::OK;
     }
 
@@ -468,12 +468,12 @@ namespace key_value_store {
             if (!status.ok()) {
                 SPDLOG_LOGGER_CRITICAL(logger, "Response from server to client should never fail");
                 printGrpcStatus(status);
-                std::exit(1);
+                // std::exit(1);
             }
-            //auto old_value = db_utils->put_value(req.key.c_str(), req.value.c_str());
-            //if (!is_head.load()) {
-            //    ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, req));
-            //}
+            if (!is_head.load()) {
+                // Skip dequeue since request has already been dequeued from the sent queue
+               ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, req, true));
+            }
         }
     }
 
@@ -563,25 +563,28 @@ namespace key_value_store {
         }
     }
 
-    void kv_storeImpl2::ack_process(Request req) {
-        auto curr_req_optional = sent_queue.tryDequeue();
-        if (!curr_req_optional.has_value()) {
-            SPDLOG_LOGGER_CRITICAL(logger, "Cannot receive ack for a request not in sent queue");
-            std::exit(1);
-        }
-        auto curr_req = curr_req_optional.value();
-        SPDLOG_LOGGER_DEBUG(logger, "is_head: {},  received ack from successor {} for request {}", is_head.load(), next_addr, curr_req.dumpRequestInfo());
-        SPDLOG_LOGGER_TRACE(logger, "sent_queue.size(): {}", sent_queue.size());
+    void kv_storeImpl2::ack_process(Request req, bool skip_dequeue) {
+        if (!skip_dequeue) {
+            auto curr_req_optional = sent_queue.tryDequeue();
+            if (!curr_req_optional.has_value()) {
+                SPDLOG_LOGGER_CRITICAL(logger, "Cannot receive ack for a request not in sent queue");
+                std::exit(1);
+            }
+            auto curr_req = curr_req_optional.value();
+            SPDLOG_LOGGER_DEBUG(logger, "is_head: {},  received ack from successor {} for request {}", is_head.load(), next_addr, curr_req.dumpRequestInfo());
+            SPDLOG_LOGGER_TRACE(logger, "sent_queue.size(): {}", sent_queue.size());
 
-        if (!req.identicalRequests(curr_req)) {
-            req.dumpRequestInfo();
-            curr_req.dumpRequestInfo();
-            assert(false);
+            if (!req.identicalRequests(curr_req)) {
+                SPDLOG_LOGGER_DEBUG(logger, req.dumpRequestInfo().c_str());
+                SPDLOG_LOGGER_DEBUG(logger, curr_req.dumpRequestInfo().c_str());
+                SPDLOG_LOGGER_CRITICAL(logger, "Cannot receive ack for a request not in sent queue");
+                assert(false);
+            }
         }
 
         if (!is_head.load()) {
 	        ClientContext _context;
-            putAck _req = curr_req.rpc_putAck();
+            putAck _req = req.rpc_putAck();
             empty _resp;
             auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
             _context.set_deadline(deadline);
@@ -605,12 +608,12 @@ namespace key_value_store {
         if (!status.ok()) {
             SPDLOG_LOGGER_CRITICAL(logger, "response from server to client should never fail");
             printGrpcStatus(status);
-            std::exit(1);
+            // std::exit(1);
         }
 
         if (req.type == request_t::PUT) { 
             // Send ack to predecessor
-            ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, req));
+            ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, req, false));
         }
     }
 
