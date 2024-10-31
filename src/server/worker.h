@@ -6,23 +6,6 @@
 #include <thread>
 #include <functional>
 
-/**
- * Queues required:
- * - pending_requests
- * - pending acks
- * - pending database commits
- * - pending forwards
- * 
- * fwdrpc() {
- *      receive update
- *      push update to commit_queue (commits to database)
- *      // async
- *      push update to forward_queue (forwards to next server)
- *      push update to sent queue
- *      
- * }
- * 
- */
 namespace key_value_store
 {
     class Worker {

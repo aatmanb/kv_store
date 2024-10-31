@@ -544,7 +544,7 @@ namespace key_value_store {
         // 1. Commit to own database
         local_map.insert(req.key, req.value);
         sent_queue.enqueue(req);
-        SPDLOG_LOGGER_TRACE(logger, "sent_queue.size(): {}", sent_queue.size());
+        SPDLOG_LOGGER_DEBUG(logger, "sent_queue.size(): {}", sent_queue.size());
         if (!is_tail.load()) {
             /**
              * Break this into 2 steps:
@@ -687,6 +687,14 @@ namespace key_value_store {
     }
 
     bool kv_storeImpl2::requestInQueue(Request req) {
+        /**
+         * Pausing the ack and commit threads to avoid concurrent updates on the sent queue
+         * TODO(): This is a stop-gap solution. It would cause issues when the head node is processing failures. 
+         * Ideally we should use a lock on the sent queue
+         */
+        ack_thread.pause();
+        commit_thread.pause();
+
         SPDLOG_LOGGER_DEBUG (logger, "Checking for duplicate request");
         ThreadSafeQueue<Request> tmp_queue;
         bool found = false;
@@ -700,6 +708,10 @@ namespace key_value_store {
             tmp_queue.enqueue(curr_req);
         }
         sent_queue = std::move(tmp_queue);
+
+        commit_thread.start();
+        ack_thread.start();
+
         return found;
     }
         
