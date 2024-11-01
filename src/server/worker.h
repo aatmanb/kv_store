@@ -1,10 +1,11 @@
 #pragma once
 
-#include "thread_safe_queue.h"
+#include <queue>
 #include <atomic>
 #include <memory>
 #include <thread>
 #include <functional>
+#include <condition_variable>
 
 namespace key_value_store
 {
@@ -12,7 +13,7 @@ namespace key_value_store
     private:
         std::atomic<bool> should_terminate;
         
-        ThreadSafeQueue<std::function<void()>> task_queue;
+        std::queue<std::function<void()>> task_queue;
 
         std::thread executor;
 
@@ -26,12 +27,13 @@ namespace key_value_store
                 {
                     std::unique_lock<std::mutex> lock(queue_mutex);
                     mutex_condition.wait(lock, [this] {
-                        return !task_queue.isEmpty() || should_terminate.load();
+                        return !task_queue.empty() || should_terminate.load();
                     });
                     if (should_terminate.load()) {
                         return;
                     }
-                    job = task_queue.dequeue();
+                    job = task_queue.front();
+                    task_queue.pop();
                 }
                 job();
             }
@@ -67,7 +69,7 @@ namespace key_value_store
         void post(const std::function<void()> &func) {
             {
                 std::unique_lock<std::mutex> lock(queue_mutex);
-                task_queue.enqueue(func);
+                task_queue.push(func);
             }
             mutex_condition.notify_one();
         }

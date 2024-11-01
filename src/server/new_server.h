@@ -65,8 +65,10 @@ namespace key_value_store {
         std::unique_ptr<master::Stub> manager_stub = nullptr;
        
         ThreadSafeQueue<Request> pending_q; 
-        ThreadSafeQueue<Request> sent_queue;
+        // ThreadSafeQueue<Request> sent_queue;
         ThreadSafeHashMap<std::string, std::string> local_map;
+        std::mutex sent_queue_mutex;
+        std::queue<Request> sent_queue;
         
         std::string client_addr; // The client which send the request 
  

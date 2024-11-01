@@ -292,7 +292,6 @@ namespace key_value_store {
 
             is_head.store(true);
             SPDLOG_LOGGER_DEBUG(logger, "successfully changed head to current node: {}", addr);
-            COUT << "Successfully changed head to current node\n";
             put_thread.start();
         } else {
             SPDLOG_LOGGER_DEBUG(logger, "New predecessor is {}", prev_addr);
@@ -303,13 +302,16 @@ namespace key_value_store {
             req.set_newsuccessor(addr);
             req.set_wastail(false);
             req.set_lastputreqvalid(false);
-            if (!sent_queue.isEmpty()) {
-                SPDLOG_LOGGER_DEBUG(logger, "sending last received put req to the new predecessor");
-                printSentQState();
-                SPDLOG_LOGGER_DEBUG(logger, "sent_queue.size(): {}", sent_queue.size());
-                putReq last_put_req = sent_queue.front().value().rpc_putReq();
-                req.set_allocated_lastputreq(&last_put_req);
-                req.set_lastputreqvalid(true);
+            {
+                std::unique_lock<std::mutex> sent_queue_lock {sent_queue_mutex};
+                if (!sent_queue.empty()) {
+                    SPDLOG_LOGGER_DEBUG(logger, "sending last received put req to the new predecessor");
+                    printSentQState();
+                    putReq last_put_req = sent_queue.front().rpc_putReq();
+                    sent_queue.pop();
+                    req.set_allocated_lastputreq(&last_put_req);
+                    req.set_lastputreqvalid(true);
+                }
             }
             SPDLOG_LOGGER_TRACE(logger, "lastputreq: {}", Request(req.lastputreq()).dumpRequestInfo());
             empty resp;
@@ -330,30 +332,12 @@ namespace key_value_store {
 
     grpc::Status kv_storeImpl2::notifySuccessorFailure(grpc::ServerContext* context, const notifySuccessorFailureReq* request, empty *response) {
         SPDLOG_LOGGER_DEBUG(logger, "successor has failed. reconfiguring...");
-        COUT << "Successor has failed. Reconfiguring...\n";
+
         std::string new_successor = request->newsuccessor();
         bool was_tail = request->wastail();
         ack_thread.pause();
         commit_thread.pause();
         if (was_tail) {
-            // /This is handled by notifyTailFailure
-            // get_thread.pause();
-            // COUT << "Processing tail failure at successor\n";
-
-            // // Modify stubs
-            // next_stub.reset();
-            // tail_stub.reset();
-
-            // // Modify addresses
-            // next_addr.clear();
-            // tail_addr.clear();
-
-            // is_tail.store(true);
-            // // Tail should hold connection to database
-            // db_utils->open();
-            // commit_sent_updates();
-            // get_thread.start();
-            // resp_thread.start();
         } else {
             // Modify address and stub for new successor
             next_addr = request->newsuccessor();
@@ -364,7 +348,7 @@ namespace key_value_store {
             process_lost_updates(last_put_req, !request->lastputreqvalid());
         }
         SPDLOG_LOGGER_DEBUG(logger, "reconfiguration done");
-        COUT << "Reconfiguration done...\n";
+
         printConfig();
         commit_thread.start();
         ack_thread.start();
@@ -373,7 +357,6 @@ namespace key_value_store {
 
     grpc::Status kv_storeImpl2::addTailNode(grpc::ServerContext *context, const addTailNodeReq *req, empty* response) {
         SPDLOG_LOGGER_DEBUG(logger, "received request to add tail node");
-        COUT << "Received request to add tail node\n";
         // Pause threads
         commit_thread.pause();
         put_thread.pause();
@@ -402,27 +385,24 @@ namespace key_value_store {
         get_thread.start();
 
         SPDLOG_LOGGER_DEBUG(logger, "reconfiguration done. New tail is: {}", tail_addr);
-        COUT << "Reconfiguration is successful. New tail is: " << tail_addr << "\n";
 
         return grpc::Status::OK;
     }
 
     grpc::Status kv_storeImpl2::notifyHeadFailure(grpc::ServerContext* context, const headFailureNotification* request, empty *response) {
         SPDLOG_LOGGER_DEBUG(logger, "received notification about head failure");
-        COUT << "Received notification about head failure\n";
+
         put_thread.pause();
         head_addr = request->new_head();
         head_stub.reset();
         head_stub = kv_store::NewStub(grpc::CreateChannel(head_addr, grpc::InsecureChannelCredentials()));
         put_thread.start();
         SPDLOG_LOGGER_DEBUG(logger, "reconfiguration done");
-        COUT << "Reconfiguration is successful\n";
         return grpc::Status::OK;
     }
 
     grpc::Status kv_storeImpl2::notifyTailFailure(grpc::ServerContext* context, const tailFailureNotification* request, empty *response) {
         SPDLOG_LOGGER_DEBUG(logger, "{}: notifyTailFailure", addr);
-        COUT << addr << ": notifyTailFailure\n";
         ack_thread.pause();
         commit_thread.pause();
         get_thread.pause();
@@ -430,7 +410,6 @@ namespace key_value_store {
         tail_stub.reset();
         if (addr == tail_addr) {
             SPDLOG_LOGGER_DEBUG(logger, "processing tail failure at predecessor");
-            COUT << "Processing tail failure at predecessor\n";
 
             // Modify stubs
             next_stub.reset();
@@ -452,18 +431,19 @@ namespace key_value_store {
         commit_thread.start();
         ack_thread.start();
         SPDLOG_LOGGER_DEBUG(logger, "reconfiguration is successful");
-        COUT << "Reconfiguration is successful\n";
         return grpc::Status::OK;
     }
 
     void kv_storeImpl2::commit_sent_updates() {
+        std::unique_lock<std::mutex> sent_queue_lock {sent_queue_mutex};
+
         grpc::Status status;
         while (true) {
-            auto req_opt = sent_queue.tryDequeue();
-            if (!req_opt.has_value()) {
+            if (sent_queue.empty()) {
                 break;
             }
-            auto req = req_opt.value();
+            auto req = sent_queue.front();
+            sent_queue.pop();
             status = servePutReq(req);
             if (!status.ok()) {
                 SPDLOG_LOGGER_CRITICAL(logger, "Response from server to client should never fail");
@@ -479,16 +459,17 @@ namespace key_value_store {
 
     void kv_storeImpl2::process_lost_updates(const putReq& last_req, bool successor_queue_empty) {
         SPDLOG_LOGGER_DEBUG(logger, "sending lost updates to the new successor");
-        COUT << "sending lost updates to the new successor\n";
+        std::unique_lock<std::mutex> sent_queue_lock {sent_queue_mutex};
+        
         printSentQState();
         SPDLOG_LOGGER_DEBUG(logger, "sent_queue.size(): {}", sent_queue.size());
         SPDLOG_LOGGER_TRACE(logger, "successor_queue_empty: {}", successor_queue_empty);
-        if (sent_queue.isEmpty()) {
+        if (sent_queue.empty()) {
             assert(successor_queue_empty);
             // TODO: assert that last_req is also empty/null because if this node's sent_queue is empty then it's successor's  sent_queue must also be empty
             return;
         }
-        ThreadSafeQueue<Request> tmp_queue;
+        std::queue<Request> tmp_queue;
         bool found = false;
         Request _req = Request(last_req);
         SPDLOG_LOGGER_DEBUG(logger, "last request in the new successor {}", _req.dumpRequestInfo());
@@ -496,15 +477,15 @@ namespace key_value_store {
         // If new successor's sent queue is empty, do not try to find an identical request. Instead just send everything in your queue.
         if (!successor_queue_empty) {
             while (!found) {
-                auto local_req_optional = sent_queue.tryDequeue();
-                if (!local_req_optional.has_value()) {
+                if (sent_queue.empty()) {
                     SPDLOG_LOGGER_CRITICAL(logger, "We come here if there is no request in sent queue which is identical to last_req. This is not possible");
                     std::exit(1);
                 }
-                auto local_req = local_req_optional.value();
+                auto local_req = sent_queue.front();
+                sent_queue.pop();
                 SPDLOG_LOGGER_DEBUG(logger, "local_req: {}", local_req.dumpRequestInfo());
 
-                tmp_queue.enqueue(local_req);
+                tmp_queue.push(local_req);
                 //const putReq req = val.value().rpc_putReq();
                 if (_req.identicalRequests(local_req)) {
                     // Found a match. Send all the requests afer this request
@@ -516,18 +497,18 @@ namespace key_value_store {
 
         while(true) {
             SPDLOG_LOGGER_DEBUG(logger, "Sending all the remaining requests in sent_queue to the new successor");
-            auto local_req = sent_queue.tryDequeue();
-            if (!local_req.has_value()) {
+            if (sent_queue.empty()) {
                 SPDLOG_LOGGER_DEBUG(logger, "All the remaining requests in sent_queue have been sent to the new successor");
                 sent_queue = std::move(tmp_queue);
                 return;
             }
-            
-            tmp_queue.enqueue(local_req.value());
+            auto local_req = sent_queue.front();
+            sent_queue.pop();
+            tmp_queue.push(local_req);
             
             ClientContext context;
             empty _resp;
-            auto fwd_put_req = local_req.value().rpc_fwdPutReq();
+            auto fwd_put_req = local_req.rpc_fwdPutReq();
             auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
             context.set_deadline(deadline);
             next_stub->commit(&context, fwd_put_req, &_resp);
@@ -540,10 +521,11 @@ namespace key_value_store {
 
     void kv_storeImpl2::commit_process(Request req) {
         SPDLOG_LOGGER_DEBUG(logger, "is_tail: {},  received commit from predecessor {} for request {}", is_tail.load(), prev_addr, req.dumpRequestInfo());
+        std::unique_lock<std::mutex> sent_queue_lock {sent_queue_mutex};
         // TODO:
         // 1. Commit to own database
         local_map.insert(req.key, req.value);
-        sent_queue.enqueue(req);
+        sent_queue.push(req);
         SPDLOG_LOGGER_DEBUG(logger, "sent_queue.size(): {}", sent_queue.size());
         if (!is_tail.load()) {
             /**
@@ -564,13 +546,15 @@ namespace key_value_store {
     }
 
     void kv_storeImpl2::ack_process(Request req, bool skip_dequeue) {
+        std::unique_lock<std::mutex> sent_queue_lock {sent_queue_mutex};
+
         if (!skip_dequeue) {
-            auto curr_req_optional = sent_queue.tryDequeue();
-            if (!curr_req_optional.has_value()) {
+            if (sent_queue.empty()) {
                 SPDLOG_LOGGER_CRITICAL(logger, "Cannot receive ack for a request not in sent queue");
                 std::exit(1);
             }
-            auto curr_req = curr_req_optional.value();
+            auto curr_req = sent_queue.front();
+            sent_queue.pop();
             SPDLOG_LOGGER_DEBUG(logger, "is_head: {},  received ack from successor {} for request {}", is_head.load(), next_addr, curr_req.dumpRequestInfo());
             SPDLOG_LOGGER_TRACE(logger, "sent_queue.size(): {}", sent_queue.size());
 
@@ -694,18 +678,20 @@ namespace key_value_store {
          */
         ack_thread.pause();
         commit_thread.pause();
+        std::unique_lock<std::mutex> sent_queue_lock {sent_queue_mutex};
 
         SPDLOG_LOGGER_DEBUG (logger, "Checking for duplicate request");
-        ThreadSafeQueue<Request> tmp_queue;
+        std::queue<Request> tmp_queue;
         bool found = false;
-        while (!sent_queue.isEmpty()) {
-            Request curr_req = sent_queue.dequeue();
+        while (!sent_queue.empty()) {
+            Request curr_req = sent_queue.front();
+            sent_queue.pop();
             if (req.identicalRequests(curr_req) && req.type == request_t::PUT) {
                 found = true;
                 SPDLOG_LOGGER_DEBUG (logger, "Current request is duplicate. Req. addr: {}, Req. key: {}, Req. value: {}", req.addr, req.key, req.value);
             }
             SPDLOG_LOGGER_DEBUG (logger, "Found?: {}", found);
-            tmp_queue.enqueue(curr_req);
+            tmp_queue.push(curr_req);
         }
         sent_queue = std::move(tmp_queue);
 
@@ -716,11 +702,15 @@ namespace key_value_store {
     }
         
     void kv_storeImpl2::printSentQState() {
-        ThreadSafeQueue<Request> tmp_queue;
+        // Make sure lock is held on sent_queue
+        assert(sent_queue_mutex.try_lock() == false);
+
+        std::queue<Request> tmp_queue;
         int idx = 0;
-        while (!sent_queue.isEmpty()) {
-            auto _req = sent_queue.tryDequeue().value();
-            tmp_queue.enqueue(_req);
+        while (!sent_queue.empty()) {
+            auto _req = sent_queue.front();
+            sent_queue.pop();
+            tmp_queue.push(_req);
             SPDLOG_LOGGER_DEBUG (logger, "idx[{}]: {}", idx, _req.dumpRequestInfo());
             idx++;
         }
