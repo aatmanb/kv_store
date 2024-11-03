@@ -27,11 +27,11 @@
 
 namespace key_value_store {
 
-    void runServer(int id, std::string &master_addr, std::string &local_addr, std::string &log_dir);
+    void runServer(int id, std::string &master_addr, std::string &local_addr, std::string &log_dir, std::string &db_dir);
     
     class kv_storeImpl2 final : public kv_store::Service {
     public:
-        kv_storeImpl2(int _id, std::string &master_addr, std::string &addr, std::string &log_dir); 
+        kv_storeImpl2(int _id, std::string &master_addr, std::string &addr, std::string &log_dir, std::string &db_dir); 
         ~kv_storeImpl2();
 
         /**
@@ -45,8 +45,8 @@ namespace key_value_store {
  
     private: 
         int id;
-      	const char *db_name;
         std::unique_ptr<DatabaseUtils> db_utils;
+        std::string db_dir;
 
         std::atomic<bool> is_tail;
         std::atomic<bool> is_head;
@@ -64,9 +64,9 @@ namespace key_value_store {
         std::unique_ptr<kv_store::Stub> tail_stub = nullptr;
         std::unique_ptr<master::Stub> manager_stub = nullptr;
        
-        ThreadSafeQueue<Request> pending_q; 
+        // ThreadSafeQueue<Request> pending_q; 
         // ThreadSafeQueue<Request> sent_queue;
-        ThreadSafeHashMap<std::string, std::string> local_map;
+        // ThreadSafeHashMap<std::string, std::string> local_map;
         std::mutex sent_queue_mutex;
         std::queue<Request> sent_queue;
         
@@ -85,6 +85,7 @@ namespace key_value_store {
         grpc::Status commit(grpc::ServerContext *context, const fwdPutReq* request, empty *response) override;
         grpc::Status ack(grpc::ServerContext *context, const putAck* request, empty *response) override;
         grpc::Status heartBeat(grpc::ServerContext *context, const empty* request, empty *response) override;
+        grpc::Status syncDB(grpc::ServerContext *context, grpc::ServerReader<dbEntry>* reader, empty *response) override;
 
         // Reconfiguration RPCs
         grpc::Status notifyPredFailure(grpc::ServerContext* context, 

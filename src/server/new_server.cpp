@@ -19,11 +19,17 @@ using grpc::ServerContext;
 using grpc::Status;
 
 namespace key_value_store {
+    int get_port_from_server(const std::string &server) {
+        int idx = server.find_first_of(":", 0);
+        return std::stoi(server.substr(idx+1));
+    }
+
     // Master takes about 5 seconds to add a new node to the chain. Connection timeout should be greater than that.
     static constexpr int CONNECTION_TIMEOUT = 10; // seconds
 
-    void runServer(int id, std::string &master_addr, std::string &local_addr, std::string &log_dir) {
-        kv_storeImpl2 service(id, master_addr, local_addr, log_dir);
+    void runServer(int id, std::string &master_addr, std::string &local_addr, std::string &log_dir,
+            std::string &db_dir) {
+        kv_storeImpl2 service(id, master_addr, local_addr, log_dir, db_dir);
         
         grpc::EnableDefaultHealthCheckService(true);
         grpc::reflection::InitProtoReflectionServerBuilderPlugin();
@@ -44,8 +50,11 @@ namespace key_value_store {
     }
 
     void kv_storeImpl2::start() {
+        SPDLOG_LOGGER_INFO(logger, "Opening connection to local db");
+        std::string db_name = db_dir + std::string("db_") + std::to_string(get_port_from_server(addr));
+        db_utils = std::move(std::make_unique<DatabaseUtils>(db_name.c_str()));
+        db_utils->open();
         SPDLOG_LOGGER_INFO(logger , "Contacting master at {}", manager_addr);
-        COUT << "Contacting master at: " << manager_addr << "\n";
 
         // Notify manager that this server has restarted
         grpc::ClientContext ctx;
@@ -53,7 +62,6 @@ namespace key_value_store {
         req.set_node(addr);
         notifyRestartResponse response;
         SPDLOG_LOGGER_DEBUG(logger , "Notifiying manager about restart");
-        COUT << "Notifying manager about restart...\n";
         auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
         ctx.set_deadline(deadline);
         auto status = manager_stub->notifyRestart(&ctx, req, &response);
@@ -64,10 +72,6 @@ namespace key_value_store {
         }
 
         SPDLOG_LOGGER_DEBUG(logger , "Manager has been notified");
-        COUT << "Manager has been notified\n";
-        db_name = response.db_path().c_str();
-        db_utils = std::move(std::make_unique<DatabaseUtils>(db_name));
-        db_utils->open();
 
         prev_addr = response.pred_addr();
         head_addr = response.head_addr();
@@ -79,6 +83,7 @@ namespace key_value_store {
             head_stub = kv_store::NewStub(grpc::CreateChannel(head_addr, grpc::InsecureChannelCredentials()));
             is_head.store(false);
         } else {
+            SPDLOG_LOGGER_INFO(logger, "Received empty head address");
             is_head.store(true);
         }
 
@@ -89,10 +94,11 @@ namespace key_value_store {
         resp_thread.start();
     }
 
-    kv_storeImpl2::kv_storeImpl2(int _id, std::string &master_addr, std::string &addr, std::string &log_dir):
+    kv_storeImpl2::kv_storeImpl2(int _id, std::string &master_addr, std::string &addr, std::string &log_dir, std::string &db_dir):
         id(_id),
         manager_addr(master_addr),
-        addr(addr) {
+        addr(addr),
+        db_dir(db_dir) {
         
         std::string log_file_name = log_dir + "spdlog_server_" + std::to_string(id) + ".log";
         COUT << log_file_name << std::endl;
@@ -132,7 +138,6 @@ namespace key_value_store {
     }
 
     grpc::Status kv_storeImpl2::get(ServerContext* context, const getReq* request, reqStatus* response) {
-        //COUT << addr <<  " GET CALLED!!" << std::endl;
         Request req = Request(*request);
         try {
             SPDLOG_LOGGER_DEBUG(logger, "GET: Is it Retry?: {}", request->retry());
@@ -151,7 +156,6 @@ namespace key_value_store {
         if (is_tail.load()) {
             resp_thread.post(std::bind(&kv_storeImpl2::serveRequest, this, req));
         } else {
-	        //COUT << "forwarding to tail: " << tail_addr << std::endl;
             ClientContext _context;
             fwdGetReq _req = req.rpc_fwdGetReq();
             empty _resp;
@@ -162,7 +166,6 @@ namespace key_value_store {
     }
 
     grpc::Status kv_storeImpl2::put(grpc::ServerContext* context, const putReq* request, reqStatus* response) {	
-	    //COUT << addr << ": PUT CALLED!!\n";
         Request req = Request(*request);
 
         try {
@@ -214,7 +217,6 @@ namespace key_value_store {
 
     void kv_storeImpl2::put_process(Request req) {
         SPDLOG_LOGGER_DEBUG(logger, "is_head: {}, received put() request {}", is_head.load(), req.dumpRequestInfo());
-        COUT << "HEAD: " << is_head.load() << ", received put() request\n";
         if (is_head.load()) {
             // Check if it is a retry request
             if (req.retry) {
@@ -225,7 +227,6 @@ namespace key_value_store {
             commit_thread.post(std::bind(&kv_storeImpl2::commit_process, this, req));
         }
         else {
-            //COUT << "Fowarding put to head: " << head_addr << "\n";
             // TODO
 	        // Acknowledge that we received the PUT request
 	        // TODO: response->set_status(KV_PUT_RECEIVED);
@@ -251,7 +252,6 @@ namespace key_value_store {
     }
     
     grpc::Status kv_storeImpl2::fwdGet(ServerContext* context, const fwdGetReq* request, empty* response) {
-        //COUT << "id: " << id <<  " received fwdGetReq" << std::endl;
         // TODO(): This assertion could fail during reconfiguration
         assert(is_tail.load()); // Only tail shoudl receive forwarded getReq
         //COUT << "pushing to pending Q" << std::endl;
@@ -261,7 +261,6 @@ namespace key_value_store {
 
     grpc::Status kv_storeImpl2::fwdPut(ServerContext* context, const fwdPutReq* request, empty* response) {
         SPDLOG_LOGGER_DEBUG(logger, "received fwdPutReq");
-	    //COUT << addr << " received fwdPutReq\n";
         assert(is_head.load());
 	    Request req = Request(*request);
         //SPDLOG_LOGGER_DEBUG (logger, "Committing key: {}, value: {}, for client: {}", req.key, req.value, req.addr);
@@ -275,7 +274,6 @@ namespace key_value_store {
     }
 
     grpc::Status kv_storeImpl2::commit(ServerContext* context, const fwdPutReq* request, empty* response) {
-	    //COUT << addr << " received commit\n";
         assert(!is_head.load());
         Request req = Request(*request);
         commit_thread.post(std::bind(&kv_storeImpl2::commit_process, this, req));
@@ -283,7 +281,6 @@ namespace key_value_store {
     }
     
     grpc::Status kv_storeImpl2::ack(ServerContext* context, const putAck* request, empty* response) {
-	    //COUT << addr << " received ack\n";
         assert(!is_tail.load());
         ack_thread.post(std::bind(&kv_storeImpl2::ack_process, this, Request(*request), false));
         return Status::OK;
@@ -291,7 +288,6 @@ namespace key_value_store {
 
     grpc::Status kv_storeImpl2::notifyPredFailure(grpc::ServerContext* context, const notifyPredFailureReq* request, empty *response) {
         SPDLOG_LOGGER_DEBUG(logger, "predecessor has failed. reconfiguring...");
-        COUT << "Predecessor has failed. Reconfiguring...\n";
         bool was_head = request->washead();
         prev_addr = request->newpred();
         ack_thread.pause();
@@ -342,7 +338,6 @@ namespace key_value_store {
             }
         }
         SPDLOG_LOGGER_DEBUG(logger, "reconfiguration done");
-        COUT << "Reconfiguration done...\n";
         printConfig();
         ack_thread.start();
         return grpc::Status::OK;
@@ -380,9 +375,20 @@ namespace key_value_store {
         put_thread.pause();
         get_thread.pause();
         resp_thread.pause();
+
+        tail_stub.reset();
+        tail_addr = req->newtail();
+        tail_stub = kv_store::NewStub(grpc::CreateChannel(tail_addr, grpc::InsecureChannelCredentials()));
         
         if (is_tail.load()) {
-            // TODO(): Close connection to DB
+            // Sync database state with new tail node
+            grpc::ClientContext ctx;
+            empty empty_resp;
+            std::unique_ptr<grpc::ClientWriter<dbEntry>> writer {tail_stub->syncDB(&ctx, &empty_resp)};
+            db_utils->write_all_rows(writer);
+            writer->WritesDone();
+            writer->Finish();
+
             is_tail.store(false);
             next_stub.reset();
 
@@ -390,12 +396,8 @@ namespace key_value_store {
             next_stub = kv_store::NewStub(grpc::CreateChannel(next_addr, grpc::InsecureChannelCredentials()));
         }
 
-        tail_stub.reset();
-        tail_addr = req->newtail();
-        tail_stub = kv_store::NewStub(grpc::CreateChannel(tail_addr, grpc::InsecureChannelCredentials()));
-
         // Close connection to database so that new tail can open it (SQLite allows only one process to connect to a given db)
-        db_utils->close();
+        // db_utils->close();
         
         // Resume threads
         commit_thread.start();
@@ -404,6 +406,19 @@ namespace key_value_store {
 
         SPDLOG_LOGGER_DEBUG(logger, "reconfiguration done. New tail is: {}", tail_addr);
 
+        return grpc::Status::OK;
+    }
+
+    grpc::Status kv_storeImpl2::syncDB(grpc::ServerContext *context, grpc::ServerReader<dbEntry>* reader, empty *response) {
+        dbEntry entry;
+        SPDLOG_LOGGER_DEBUG(logger, "Starting db sync with current tail\n");
+        auto start_time = std::chrono::system_clock::now();
+        while (reader->Read(&entry)) {
+            db_utils->put_value(entry.key().c_str(), entry.value().c_str());
+        }
+        auto end_time = std::chrono::system_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time-start_time);
+        SPDLOG_LOGGER_INFO(logger, "DB sync took: {}", duration.count());
         return grpc::Status::OK;
     }
 
@@ -438,8 +453,6 @@ namespace key_value_store {
             // tail_addr.clear();
 
             is_tail.store(true);
-            // Tail should hold connection to database
-            db_utils->open();
             commit_sent_updates();
             resp_thread.start();
         } else {
@@ -542,7 +555,7 @@ namespace key_value_store {
         std::unique_lock<std::mutex> sent_queue_lock {sent_queue_mutex};
         // TODO:
         // 1. Commit to own database
-        local_map.insert(req.key, req.value);
+        db_utils->put_value(req.key.c_str(), req.value.c_str());
         sent_queue.push(req);
         SPDLOG_LOGGER_DEBUG(logger, "sent_queue.size(): {}", sent_queue.size());
         if (!is_tail.load()) {
@@ -680,7 +693,6 @@ namespace key_value_store {
 
     void kv_storeImpl2::printConfig() {
         SPDLOG_LOGGER_DEBUG(logger, "addr: {}, head_addr: {}, tail_addr: {}, prev_addr: {}, next_addr: {}", addr, head_addr, tail_addr, prev_addr, next_addr);
-        COUT << "addr: " << addr << " head_addr: " << head_addr << " tail_addr: " << tail_addr << " prev_addr: " << prev_addr << " next_addr: " << next_addr << std::endl;
     }
     
     void kv_storeImpl2::printGrpcStatus(grpc::Status status) {
