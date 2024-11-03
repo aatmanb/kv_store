@@ -41,10 +41,13 @@ message fwdPutReq {
 
 message notifyFailureReq {
     string failedNode = 1;
+    bool leave = 2;
 }
 
 message notifyRestartReq {
     string node = 1;
+    bool new = 2;
+    int32 partition = 3;
 }
 
 message notifyPredFailureReq {
@@ -76,6 +79,7 @@ message notifyRestartResponse {
     string db_path = 1;
     string pred_addr = 2;
     string head_addr = 3;
+    int32 partition = 4;
 }
 
 message failCommand {
@@ -96,6 +100,7 @@ service kv_store {
 	rpc put (putReq) returns (reqStatus) {};
     rpc ping (empty) returns (empty) {};
     rpc fail (failCommand) returns (empty) {};
+    rpc leave(failCommand) returns (empty) {};
     
     // Used by the service internally
     rpc fwdGet (fwdGetReq) returns (empty) {};
@@ -120,11 +125,23 @@ service kv_store {
     // rpc populateDB (empty) returns (dbPath) {};
 }
 
+message chainMetadataReq {
+    int32 partition = 1;
+}
+
+message chainMetadataResponse {
+    string head_addr = 1;
+    string tail_addr = 2;
+    bool alive = 3;
+}
+
 service master {
     // For clean failures
     rpc notifyFailure (notifyFailureReq) returns (empty) {};
 
     rpc notifyRestart (notifyRestartReq) returns (notifyRestartResponse) {};
+
+    rpc getChainMetadata (chainMetadataReq) returns (chainMetadataResponse) {};
 }
 
 

@@ -178,12 +178,30 @@ namespace key_value_store {
 
     grpc::Status kv_storeImpl2::fail(grpc::ServerContext* context, const failCommand* request, empty* response) {
         SPDLOG_LOGGER_INFO(logger, "{}: fail called", addr);
-        COUT << addr << ": Fail called\n";
         bool clean = request->clean();
         if (clean) {
             grpc::ClientContext ctx;
             notifyFailureReq req;
             req.set_failednode(addr);
+            req.set_leave(false);
+            empty response;
+            auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
+            ctx.set_deadline(deadline);
+            manager_stub->notifyFailure(&ctx, req, &response);
+            db_utils->close();
+        }
+        exit(-1);
+        return grpc::Status::OK;
+    }
+
+    grpc::Status kv_storeImpl2::leave(grpc::ServerContext* context, const failCommand* request, empty* response) {
+        SPDLOG_LOGGER_INFO(logger, "{}: leave called", addr);
+        bool clean = request->clean();
+        if (clean) {
+            grpc::ClientContext ctx;
+            notifyFailureReq req;
+            req.set_failednode(addr);
+            req.set_leave(true);
             empty response;
             auto deadline = std::chrono::high_resolution_clock::now() + std::chrono::seconds(CONNECTION_TIMEOUT);
             ctx.set_deadline(deadline);

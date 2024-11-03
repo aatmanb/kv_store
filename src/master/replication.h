@@ -52,9 +52,12 @@ namespace key_value_store {
 
         void add_node(const std::string &server, notifyRestartResponse* resp);
 
-        void remove_node(const std::string &server);
+        void remove_node(const std::string &server, const bool leave=true);
 
         void start_health_check();
+
+        // Return the chain metadata (addresses of head and tail servers)
+        std::optional<std::pair<std::string, std::string>> get_chain_metadata(uint32_t i);
 
         void configure(std::string &db_dir, std::string &config_path, std::shared_ptr<spdlog::logger> logger);
         void print_chain(std::vector<std::string> &chain);

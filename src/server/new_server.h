@@ -75,6 +75,7 @@ namespace key_value_store {
         grpc::Status get(grpc::ServerContext* context, const getReq* request, reqStatus* response) override;
         grpc::Status put(grpc::ServerContext* context, const putReq* request, reqStatus* response) override;
         grpc::Status fail(grpc::ServerContext* context, const failCommand* request, empty* response) override;
+        grpc::Status leave(grpc::ServerContext* context, const failCommand* request, empty* response) override;
         
         //std::unique_ptr<KVResponse::Stub> client_stub = nullptr;
         

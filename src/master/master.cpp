@@ -11,7 +11,21 @@ namespace key_value_store {
     }
 
     grpc::Status MasterImpl::notifyFailure(grpc::ServerContext *context, const notifyFailureReq *req, empty *resp) {
-        inst->remove_node(req->failednode());
+        inst->remove_node(req->failednode(), req->leave());
+        return grpc::Status::OK;
+    }
+
+    grpc::Status MasterImpl::getChainMetadata(grpc::ServerContext *context, const chainMetadataReq *req, 
+            chainMetadataResponse *resp) {
+        SPDLOG_LOGGER_DEBUG(logger, "received chain metadata request");
+        auto metadata_res = inst->get_chain_metadata(req->partition());
+        resp->set_alive(metadata_res.has_value());
+        if (metadata_res.has_value()) {
+            return grpc::Status::OK;
+        }
+        auto metadata = metadata_res.value();
+        resp->set_head_addr(metadata.first);
+        resp->set_tail_addr(metadata.second);
         return grpc::Status::OK;
     }
 

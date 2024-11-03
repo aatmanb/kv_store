@@ -28,7 +28,22 @@ namespace key_value_store {
     void ReplicationManager::add_node(const std::string &server, notifyRestartResponse *resp) {
         std::unique_lock<std::shared_mutex> lock {mtx};
 
-        int volume = server_to_chain_map[server];
+        int volume = -1;
+        if (server_to_chain_map.count(server)) {
+            // Server is part of initial static config
+            volume = server_to_chain_map[server];
+        } else {
+            int min_chain_length = INT32_MAX;
+            int i=0;
+            for (auto chain: active_servers) {
+                if (chain.size() < min_chain_length) {
+                    min_chain_length = chain.size();
+                    volume = i;
+                }
+                i++;
+            }
+        }
+
         SPDLOG_LOGGER_DEBUG(logger, "Adding {} to volume {}", server, volume);
         auto& servers = active_servers[volume];
         if (servers.size()) {    
@@ -53,12 +68,13 @@ namespace key_value_store {
         SPDLOG_LOGGER_DEBUG(logger, "successfully added {} to the chain", server);
         node_to_conn_map[server] = std::move(kv_store::NewStub(grpc::CreateChannel(server, grpc::InsecureChannelCredentials())));
         active_servers[volume].push_back(server);
+        server_to_chain_map[server] = volume;
             
         resp->set_db_path(db_dir + get_db_name_for_volume(volume));
         print_chain(active_servers[volume]);
     }
 
-    void ReplicationManager::remove_node(const std::string &server) {
+    void ReplicationManager::remove_node(const std::string &server, const bool leave) {
         SPDLOG_LOGGER_DEBUG(logger, "handling failure of server {}", server);
         COUT << "Handling failure of server: " << server << "\n";
         std::unique_lock<std::shared_mutex> lock {mtx};
@@ -93,12 +109,6 @@ namespace key_value_store {
             COUT << "Processing tail failure\n";
             // Tail failure
             auto new_tail = servers[idx-1];
-            // grpc::ClientContext ctx;
-            // notifySuccessorFailureReq req;
-            // req.set_wastail(true);
-            // req.set_newsuccessor("");
-            // empty empty_response;
-            // node_to_conn_map[servers[idx-1]]->notifySuccessorFailure(&ctx, req, &empty_response);
 
             // Notify all other servers about the new tail
             for (int i=idx-1; i>=0; i--) {
@@ -124,6 +134,12 @@ namespace key_value_store {
         
         servers.erase(servers.begin() + idx);
         node_to_conn_map.erase(server);
+
+        if (leave) {
+            // Forget membership information if server is leaving
+            server_to_chain_map.erase(server);
+        }
+
         print_chain(active_servers[volume]);
         SPDLOG_LOGGER_INFO(logger, "reconfiguration done");
         COUT << "Reconfiguration done\n";
@@ -205,6 +221,14 @@ namespace key_value_store {
 
     void ReplicationManager::printGrpcStatus(grpc::Status status) {
         SPDLOG_LOGGER_CRITICAL(logger, "gRPC called failed.\nError message: {}\nError details: {}", status.error_message(), status.error_details());
+    }
+
+    std::optional<std::pair<std::string, std::string>> ReplicationManager::get_chain_metadata(uint32_t i) {
+        std::shared_lock<std::shared_mutex> lock {mtx};
+        if (i >= active_servers.size() || !active_servers[i].size()) {
+            return std::nullopt;
+        }
+        return std::make_pair<>(active_servers[i][0], active_servers[i][active_servers[i].size()-1]);
     }
 
 }

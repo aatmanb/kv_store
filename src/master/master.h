@@ -16,6 +16,8 @@ namespace key_value_store {
         grpc::Status notifyRestart(grpc::ServerContext *context, const notifyRestartReq *req, notifyRestartResponse *resp) override;
 
         grpc::Status notifyFailure(grpc::ServerContext *context, const notifyFailureReq *req, empty *resp) override;
+
+        grpc::Status getChainMetadata(grpc::ServerContext *context, const chainMetadataReq *req, chainMetadataResponse *resp) override;
     private:
         std::shared_ptr<spdlog::logger> logger;
         ReplicationManager *inst;
