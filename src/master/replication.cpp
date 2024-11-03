@@ -5,6 +5,12 @@
 #include <chrono>
 
 namespace key_value_store {
+    int get_port_from_server(const std::string &server) {
+        int idx = server.find_first_of(":", 0);
+        return std::stoi(server.substr(idx+1));
+    }
+
+
     void ReplicationManager::print_chain(std::vector<std::string> &chain) {
         if (!chain.size()) return;
         int i;
@@ -70,7 +76,8 @@ namespace key_value_store {
         active_servers[volume].push_back(server);
         server_to_chain_map[server] = volume;
             
-        resp->set_db_path(db_dir + get_db_name_for_volume(volume));
+        // resp->set_db_path(db_dir + get_db_name_for_volume(volume));
+        resp->set_db_path(db_dir + get_db_name_for_volume(volume, get_port_from_server(server)));
         print_chain(active_servers[volume]);
     }
 

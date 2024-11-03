@@ -20,7 +20,7 @@ namespace key_value_store {
         SPDLOG_LOGGER_DEBUG(logger, "received chain metadata request");
         auto metadata_res = inst->get_chain_metadata(req->partition());
         resp->set_alive(metadata_res.has_value());
-        if (metadata_res.has_value()) {
+        if (!metadata_res.has_value()) {
             return grpc::Status::OK;
         }
         auto metadata = metadata_res.value();

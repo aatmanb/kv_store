@@ -43,29 +43,23 @@ public:
 
 class client {
 public:
-    client(int _id, int timeout, const std::string& config_file, const std::string& log_dir);
+    client(int _id, int timeout, const std::string& config_file, const std::string& log_dir,
+            std::string& manager_addr);
     client();
     ~client();
 
     int get(std::string key, std::string &value);
     int put(std::string key, std::string value, std::string &old_value);
     int kill(std::string server, int clean);
-
-    // std::unique_ptr<kv_store::Stub> createStub(const std::string& port);
-    ServerConfig* getStub(const std::string& key, bool retry=false);
-    ServerConfig* getStub(PartitionConfig *partition);
-
     int id;
-
     int timeout;
 
     ServerConfig* createStub(int port);
     ServerConfig* createStub(const std::string& addr);
 
 private:
-
-    // Server
-    std::vector<ServerConfig*> server_configs;
+    std::vector<ServerConfig*> head_configs;
+    std::vector<ServerConfig*> tail_configs;
 
     std::string resp_server_addr;
     std::atomic<bool> resp_server_started;
@@ -77,8 +71,6 @@ private:
     void start_response_server(std::unique_ptr<grpc::Server>& server, std::string& port, std::atomic<bool>& started, std::shared_ptr<spdlog::logger> logger);
 
     std::thread server_thread;
-
-    std::vector<PartitionConfig> partitions;
     int num_partitions;
 
     std::unordered_map<std::string, int, CustomHash> key_to_partition;
@@ -90,6 +82,11 @@ private:
     std::mutex lock_for_rcvd_resp; 
     
     std::shared_ptr<spdlog::logger> logger;
+
+    std::string manager_addr;
+    std::unique_ptr<master::Stub> manager_stub;
+
+    bool refreshServerMetadata(uint32_t partition_id);
 };
 
 class KVResponseService final : public KVResponse::Service {

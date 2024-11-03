@@ -23,9 +23,11 @@ using grpc::Status;
 
 client::client() {}
 
-client::client(int _id, int timeout, const std::string& config_file, const std::string& log_dir) : 
+client::client(int _id, int timeout, const std::string& config_file, const std::string& log_dir,
+        std::string& manager_addr) : 
     id(_id), 
-    timeout(timeout)
+    timeout(timeout),
+    manager_addr(manager_addr)
 {
     std::string log_file_name = log_dir + "spdlog_client_" + std::to_string(id) + ".log";
     COUT << log_file_name << std::endl;
@@ -39,27 +41,17 @@ client::client(int _id, int timeout, const std::string& config_file, const std::
     SPDLOG_LOGGER_TRACE(logger , "Some trace message that will be evaluated.{} ,{}", 1, 3.23);
     SPDLOG_LOGGER_DEBUG(logger , "Some Debug message that will be evaluated.. {} ,{}", 1, 3.23);
     SPDLOG_LOGGER_INFO(logger , "Some Info message that will be evaluated.. {} ,{}", 1, 3.23);
-    //SPDLOG_LOGGER_WARN(logger , "Some Warn message that will be evaluated.. {} ,{}", 1, 3.23);
-    //SPDLOG_LOGGER_ERROR(logger , "Some Error message that will be evaluated.. {} ,{}", 1, 3.23);
-    //SPDLOG_LOGGER_CRITICAL(logger , "Some Critical message that will be evaluated.. {} ,{}", 1, 3.23);
 
     SPDLOG_LOGGER_INFO(logger , "parsing config file");
-    partitions = parseConfigFile(config_file); 
+    auto partitions = parseConfigFile(config_file); 
     num_partitions = partitions.size(); 
     SPDLOG_LOGGER_INFO(logger , "number of partitions: {}", num_partitions);
-    std::cout << "Number of partitions: " << num_partitions << std::endl;
 
-    SPDLOG_LOGGER_INFO(logger , "Establishing gRPC channels and setting up stubs");
-    std::cout << "Establishing gRPC channels and setting up stubs" << std::endl;
-    // establish a channel corresponding to each stub
-    for (int i=0; i<num_partitions; i++) {
-        server_configs.push_back(getStub(&partitions[i]));
-        //std::string addr = partitions[i].getServer();
-        //SPDLOG_LOGGER_INFO(logger , "establishing channel with server {}" , addr);
-        //std::shared_ptr<grpc::Channel> channel = grpc::CreateChannel(addr, grpc::InsecureChannelCredentials());
-        //SPDLOG_LOGGER_TRACE(logger , "creating stub");
-        //server_configs.push_back(new ServerConfig(addr, kv_store::NewStub(channel)));
-    }
+    tail_configs.resize(num_partitions);
+    head_configs.resize(num_partitions);
+
+    SPDLOG_LOGGER_INFO(logger, "Establishing gRPC channel with manager");
+    manager_stub = std::move(master::NewStub(grpc::CreateChannel(manager_addr, grpc::InsecureChannelCredentials())));
      
     SPDLOG_LOGGER_INFO(logger , "Starting response server");
     std::cout << "Starting response server" << std::endl;
@@ -127,14 +119,26 @@ client::get(std::string key, std::string &value) {
     reqStatus response;
  
     int num_retry_per_server, num_retry_per_key;
-    ServerConfig *server;
-
     num_retry_per_key = 0;
+    CustomHash custom_hash;
+    uint32_t partition_id = custom_hash(key) % num_partitions;
+    auto tail_server = tail_configs[partition_id];
+
     while (num_retry_per_key < req_retry_limit_per_key) {
+        if (num_retry_per_key || !tail_server) {
+            // Refresh server list for retries
+            bool refresh_result = refreshServerMetadata(partition_id);
+            if (!refresh_result) {
+                SPDLOG_LOGGER_CRITICAL(logger, "Unable to refresh server metadata. We should never see this!");
+                return -1;
+            }
+            tail_server = tail_configs[partition_id];
+        }
         // Always try a new server for better load distribution
-        server = getStub(key, true);
         num_retry_per_key++;
-        SPDLOG_LOGGER_INFO(logger, "Connecting to server {} for key {}", server->addr, key);
+        
+        
+        SPDLOG_LOGGER_INFO(logger, "Connecting to server {} for key {}", tail_server->addr, key);
         num_retry_per_server = 0;
         while (num_retry_per_server < req_retry_limit_per_server) {
             // Submit query
@@ -147,7 +151,7 @@ client::get(std::string key, std::string &value) {
             SPDLOG_LOGGER_WARN (logger, "Retry No: {}, Max Retries: {}", num_retry_per_server, req_retry_limit_per_server);
             if (num_retry_per_server != 1)
                 request.set_retry(true);    
-            auto status = server->stub->get(&context, request, &response);
+            auto status = tail_server->stub->get(&context, request, &response);
             if (!status.ok()) {
                 SPDLOG_LOGGER_WARN(logger , "Couldn't send request. RPC timeout {}s", timeout);
                 continue;
@@ -167,7 +171,7 @@ client::get(std::string key, std::string &value) {
                 SPDLOG_LOGGER_WARN(logger, "Response timeout {}s", timeout);
             }
         }
-        SPDLOG_LOGGER_WARN(logger , "Retries limit reached for server {}", server->addr);
+        SPDLOG_LOGGER_WARN(logger , "Retries limit reached for server {}", tail_server->addr);
     }
 
     SPDLOG_LOGGER_CRITICAL(logger , "Retries limit reached for all servers in config. We should never see this!!");
@@ -177,11 +181,6 @@ client::get(std::string key, std::string &value) {
 
 int
 client::put(std::string key, std::string value, std::string &old_value) {
-    ////std::string key_str = charArrayToString(key);
-    ////std::string value_str = charArrayToString(value);
-    //
-    //std::cout << "[client " << id << "] " << "put" << "(" << key << ")" << ": " << value << std::endl;
-    //
     putReq request;
     request.set_key(key);
     request.set_value(value);
@@ -193,19 +192,29 @@ client::put(std::string key, std::string value, std::string &old_value) {
     reqStatus response;
 
     int num_retry_per_server, num_retry_per_key;
-    ServerConfig *server;
-
     num_retry_per_key = 0;
+    CustomHash custom_hash;
+    uint32_t partition_id = custom_hash(key) % num_partitions;
+    auto head_server = head_configs[partition_id];
     while (num_retry_per_key < req_retry_limit_per_key) {
+        if (num_retry_per_key || !head_server) {
+            // Refresh server list for retries
+            bool refresh_result = refreshServerMetadata(partition_id);
+            if (!refresh_result) {
+                SPDLOG_LOGGER_CRITICAL(logger, "Unable to refresh server metadata. We should never see this!");
+                return -1;
+            }
+            head_server = head_configs[partition_id];
+        }
+
         // Always try a new server for better load distribution
-    
-        server = getStub(key, true);
         num_retry_per_key++;
-        SPDLOG_LOGGER_INFO(logger, "Connecting to server {} for key {}", server->addr, key);
+        SPDLOG_LOGGER_INFO(logger, "Connecting to server {} for key {}", head_server->addr, key);
+
         num_retry_per_server = 0;
         while (num_retry_per_server < req_retry_limit_per_server) {
             // Submit query
-            num_retry_per_server++; 
+            num_retry_per_server++;
         
             // Create context every time you try a connection
             ClientContext context;
@@ -214,7 +223,7 @@ client::put(std::string key, std::string value, std::string &old_value) {
             SPDLOG_LOGGER_WARN (logger, "Retry No: {}, Max Retries: {}", num_retry_per_server, req_retry_limit_per_server);
             if (num_retry_per_server != 1)
                 request.set_retry(true);
-            auto status = server->stub->put(&context, request, &response);
+            auto status = head_server->stub->put(&context, request, &response);
             if (!status.ok()) {
                 SPDLOG_LOGGER_WARN(logger , "Couldn't send request. RPC timeout {}s", timeout);
                 continue;
@@ -234,7 +243,7 @@ client::put(std::string key, std::string value, std::string &old_value) {
                 SPDLOG_LOGGER_WARN(logger, "Response timeout {}s", timeout);
             }
         }
-        SPDLOG_LOGGER_WARN(logger , "Retries limit reached for server {}", server->addr);
+        SPDLOG_LOGGER_WARN(logger , "Retries limit reached for server {}", head_server->addr);
     }
 
     SPDLOG_LOGGER_CRITICAL(logger , "Retries limit reached for all servers in config. We should never see this!!");
@@ -268,28 +277,28 @@ int client::kill(std::string server, int clean) {
     return -1;
 }
 
-ServerConfig*
-client::getStub(const std::string& key, bool retry) {
-    CustomHash hash;
-    int partition_id = hash(key) % num_partitions;
-    SPDLOG_LOGGER_TRACE(logger, "partition_id: {}", partition_id); 
-    if (retry) {
-        SPDLOG_LOGGER_TRACE(logger, "getting new stub"); 
-        delete server_configs[partition_id];
-        SPDLOG_LOGGER_TRACE(logger, "deleted previous config"); 
-        PartitionConfig *partition = &(partitions[partition_id]);
-        ServerConfig *config = createStub(partition->getServer());
-        server_configs[partition_id] = config;
+
+bool client::refreshServerMetadata(uint32_t partition_id) {
+    grpc::ClientContext ctx;
+    chainMetadataReq req;
+    req.set_partition(partition_id);
+    chainMetadataResponse resp;
+
+    auto status = manager_stub->getChainMetadata(&ctx, req, &resp);
+    if (!status.ok()) {
+        SPDLOG_LOGGER_CRITICAL(logger, "Call to get chain metadata failed: {}", status.error_message());
+        return false;
+    }
+    if (!resp.alive()) {
+        SPDLOG_LOGGER_CRITICAL(logger, "Chain doesn't have any active servers");
+        return false;
     }
 
-    return server_configs[partition_id];
+    head_configs[partition_id] = createStub(resp.head_addr());
+    tail_configs[partition_id] = createStub(resp.tail_addr());
+    SPDLOG_LOGGER_INFO(logger, "getChainMetadata returned head: {}, tail: {} for partition {}", resp.head_addr(), resp.tail_addr(), partition_id);
+    return true;
 }
-
-ServerConfig*
-client::getStub(PartitionConfig *partition) {
-    return createStub(partition->getServer());
-}
-
 
 KVResponseService::KVResponseService(std::atomic<bool> *_rcvd_resp, int *_status, std::string *_value, std::condition_variable *_condVar, std::shared_ptr<spdlog::logger> _logger):
     rcvd_resp(_rcvd_resp),
