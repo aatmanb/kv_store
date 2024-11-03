@@ -11,14 +11,18 @@ cpu_variances = np.array([], dtype=np.float64)
 mem_variances = np.array([], dtype=np.float64)
 log_dir = ''
 
-def handle_sigterm(signum, frame):
-    print("received SIGTERM signal. Writing to csv before exiting")
+def save_values():
     global times
     global cpu_variances
     global mem_variances
     global log_dir
     df = pd.DataFrame({'time': times, 'cpu_usage_variance': cpu_variances, 'mem_usage_variance': mem_variances})
     df.to_csv(log_dir + 'cpu_load.csv')
+
+
+def handle_sigterm(signum, frame):
+    print("received SIGTERM signal. Writing to csv before exiting")
+    save_values()
     sys.exit(0)
 
 
@@ -39,20 +43,25 @@ def track_resource_usage(pids, duration, snapshot_duration, log_dir):
         cpu_usages = []
         memory_usages = []
         for pid in pids:
-            process = psutil.Process(pid)
-            cpu_usages.append(process.cpu_percent(interval=None))
-            memory_usages.append(process.memory_percent())
-        
+            try:
+                process = psutil.Process(pid)
+                cpu_usages.append(process.cpu_percent(interval=snapshot_duration))
+                memory_usages.append(process.memory_percent())
+            except psutil.NoSuchProcess:
+                continue
+        if len(cpu_usages) == 0:
+            break
         cpu_variances = np.append(cpu_variances, np.var(cpu_usages))
         mem_variances = np.append(mem_variances, np.var(memory_usages))
         times = np.append(times, int(time.time()-start))  
 
         time.sleep(snapshot_duration)
+    save_values()
     
     print("Finished observing process load")
-    print(cpu_variances)
-    print(mem_variances)
-    print(times)
+    # print(cpu_variances)
+    # print(mem_variances)
+    # print(times)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
