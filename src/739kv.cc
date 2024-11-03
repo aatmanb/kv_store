@@ -50,7 +50,8 @@ int kv739_init(int id, const std::string& config_file, const std::string& log_di
     }
 
     try {
-        client_instance = new client(id, timeout, config_file, log_dir);
+        std::string manager_addr = "localhost:50000";
+        client_instance = new client(id, timeout, config_file, log_dir, manager_addr);
         return 0;
     }
     catch (const std::exception &e) {
