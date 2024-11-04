@@ -7,6 +7,7 @@ import signal
 import shutil
 import random
 import numpy as np
+import threading
 
 bin_dir = ''
 db_dir = ''
@@ -64,21 +65,33 @@ def startServer(config, master_port='', log_dir='', db_dir=''):
         process = subprocess.Popen(cmd, shell=True, stdout=f, stderr=f, preexec_fn=os.setsid)
         server_processes.append(process)
  
-    time.sleep(5)
+    time.sleep(4)
 
 
 def createChain(server_list, master_port='', log_dir='', db_dir=''):
     for i in range(len(server_list)):
+<<<<<<< Updated upstream
         startServer(server_list[i], master_port=master_port, log_dir=log_dir, db_dir=db_dir)
 
 
 def createService(config_file, master_port='', log_dir='', db_dir=''):
+=======
+        if (i == 0):
+            startServer(server_list[i], head=True, tail_port=server_list[-1], next_port=server_list[i+1], master_port=master_port, log_dir=log_dir)
+        elif (i == len(server_list)-1):
+            startServer(server_list[i], tail=True, head_port=server_list[0], prev_port=server_list[i-1], master_port=master_port, log_dir=log_dir)
+        else:
+            startServer(server_list[i], head_port=server_list[0], tail_port=server_list[-1], prev_port=server_list[i-1], next_port=server_list[i+1], master_port=master_port, log_dir=log_dir)
+
+def createService(config_file, master_port='', log_dir='', start_master=True, master_config_file=''):
+>>>>>>> Stashed changes
     #TODO: start the manager before creating chains
 
-    if master_port:
+    if start_master:
+        assert(master_config_file)
         cmd = bin_dir + 'master'
         cmd += ' ' + f'--db_dir={db_dir}'
-        cmd += ' ' + f'--config_path={config_file}'
+        cmd += ' ' + f'--config_path={master_config_file}'
         cmd += ' ' + f'--log_dir={log_dir}'
         
         print(f"Starting master")
@@ -91,7 +104,7 @@ def createService(config_file, master_port='', log_dir='', db_dir=''):
             process = subprocess.Popen(cmd, shell=True, stdout=f, stderr=f, preexec_fn=os.setsid)
             master_processes.append(process)
 
-    time.sleep(5)
+        time.sleep(5)
 
     partitions = getPartitionConfig(config_file)
     for _, servers in partitions.items():
@@ -203,6 +216,7 @@ def startKiller(config_file, clean=1, strategy='random'):
         process = subprocess.Popen(killer_process_cmd, shell=True, stdout=f, stderr=f, preexec_fn=os.setsid)
         return process
 
+<<<<<<< Updated upstream
 def manualKillServers(choice, wait_time = 1):
     time.sleep(wait_time)
     choice = 0
@@ -219,18 +233,44 @@ def manualKillServers(choice, wait_time = 1):
         node = server_processes[1]
         print (f'Killing server {node}')
         
+=======
+def manualKillServers(choice, min_wait_time = 1, max_wait_time = 4, randomize=True, num_kill = 1):
+    print(f"Kill {num_kill} servers")
+    for _ in range(num_kill):
+        if randomize:
+            time.sleep(random.uniform(min_wait_time, max_wait_time))
+        else:
+            time.sleep(min_wait_time)
 
-    if (node != None):
-        terminateProcess(node)
-        server_processes.remove(node)
-    else:
-        print ('Cannot remove a non-existing process')
+        global server_processes
+        node = None
+        if (choice == 0):
+            print ('Killing tail server')
+            node = server_processes[-1]
+        elif (choice == 1):
+            print ('Killing head server')
+            node = server_processes[0]
+        else:
+            node = random.choice(server_processes[1:-1])
+            print (f'Killing server {node}')
+
+        print(f"Killing server {node.pid}")
+>>>>>>> Stashed changes
+
+
+        if (node != None):
+            terminateProcess(node)
+            server_processes.remove(node)
+        else:
+            print ('Cannot remove a non-existing process')
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--config-file', type=str, default='chain_config.txt', help='chain configuration file')
+    parser.add_argument('--config-file', type=str, default='chain_config5.txt', help='chain configuration file')
+    parser.add_argument('--master-config-file', type=str, default='chain_config10.txt', help='chain configuration file')
+    parser.add_argument('--new-members-config-file', type=str, default='chain_config5_new_members.txt', help='chain configuration file')
     parser.add_argument('--real-fname', type=str, default='real')
     parser.add_argument('--fake-fname', type=str, default='fake')
     parser.add_argument('--test-type', type=str, default='sanity', help='sanity, correctness, crash_consistency, perf, availability')
@@ -241,6 +281,7 @@ if __name__ == "__main__":
     parser.add_argument('--skew', action='store_true')
     parser.add_argument('--vk_ratio', type=int, default=0, help='ratio of value to key lenght')
     parser.add_argument('--num-keys', type=int, default=1000, help='number of gets to put and get in sanity test')
+    parser.add_argument('--membership-change', action='store_true')
 
 
     parser.add_argument('--only-clients', action='store_true')
@@ -251,6 +292,8 @@ if __name__ == "__main__":
     top_dir = args.top_dir
     test_type = args.test_type
     config_file = top_dir + args.config_file
+    new_members_config_file = top_dir + args.new_members_config_file
+    master_config_file = top_dir + args.master_config_file
     
     bin_dir = top_dir + 'bin/'
     db_dir = top_dir + 'db/'
@@ -263,24 +306,43 @@ if __name__ == "__main__":
 
     if (not args.only_clients):
         try:
+<<<<<<< Updated upstream
             createService(config_file, args.master_port, log_dir, db_dir)
+=======
+            thread = threading.Thread(None, createService, args=(config_file, args.master_port, log_dir, True, master_config_file,))
+            #createService(config_file, args.master_port, log_dir)
+            thread.start()
+>>>>>>> Stashed changes
         except Exception as e:
             print(f"An unexpected exception occured: {e}")
             terminateTest()
-            
-        time.sleep(30)
 
+<<<<<<< Updated upstream
     startLoadMeasurement(log_dir, master_processes, server_processes)
+=======
+        thread.join()
+        time.sleep(5)
+            
+    #if (not args.membership_change):
+    #   time.sleep(5)
+    #   thread.join()
+>>>>>>> Stashed changes
 
     if (not args.only_service):
         try:
+            #if (args.membership_change):
+            #    time.sleep(3)
             startClients(args)
         except Exception as e:
             print(f"An unexpected exception occured: {e}")
             terminateTest()
 
-    # if args.test_type == 'availability':
-    manualKillServers(0)
+    #thread = threading.Thread(None, manualKillServers, args=(0, 4, 10, False, 5, ))
+    #thread.start()
+
+    if (args.membership_change):
+        time.sleep(2)
+        createService(new_members_config_file, master_port=args.master_port, log_dir=log_dir, start_master=False)
 
     time.sleep(5)
     startServer([10, 5450], 50000, log_dir, db_dir)
@@ -291,10 +353,12 @@ if __name__ == "__main__":
     else:
         kill = input("Press <enter> when you want to terminate the service: ")
 
+    #thread.join()
+
 
     print("Test finished. Terminating service")
     # wait for sometime to flush the stdout buffers to the log file
-    time.sleep(10)
+    time.sleep(5)
     terminateService()
     # for process in load_measurement_processes:
     #    terminateProcess(process)

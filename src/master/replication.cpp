@@ -180,7 +180,7 @@ namespace key_value_store {
             for (auto& server: servers_to_remove) {
                 remove_node(server);
             }
-            std::this_thread::sleep_for(std::chrono::seconds(health_check_interval));
+            std::this_thread::sleep_for(std::chrono::milliseconds(health_check_interval));
         }
     }
 

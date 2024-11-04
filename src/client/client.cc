@@ -119,6 +119,9 @@ client::get(std::string key, std::string &value) {
     reqStatus response;
  
     int num_retry_per_server, num_retry_per_key;
+    bool is_retry = false;
+    ServerConfig *server;
+
     num_retry_per_key = 0;
     CustomHash custom_hash;
     uint32_t partition_id = custom_hash(key) % num_partitions;
@@ -135,6 +138,7 @@ client::get(std::string key, std::string &value) {
             tail_server = tail_configs[partition_id];
         }
         // Always try a new server for better load distribution
+        server = getStub(key, is_retry);
         num_retry_per_key++;
         
         
@@ -171,7 +175,8 @@ client::get(std::string key, std::string &value) {
                 SPDLOG_LOGGER_WARN(logger, "Response timeout {}s", timeout);
             }
         }
-        SPDLOG_LOGGER_WARN(logger , "Retries limit reached for server {}", tail_server->addr);
+        SPDLOG_LOGGER_WARN(logger , "Retries limit reached for server {}", server->addr);
+        is_retry = true;
     }
 
     SPDLOG_LOGGER_CRITICAL(logger , "Retries limit reached for all servers in config. We should never see this!!");
@@ -192,6 +197,9 @@ client::put(std::string key, std::string value, std::string &old_value) {
     reqStatus response;
 
     int num_retry_per_server, num_retry_per_key;
+    bool is_retry = false;
+    ServerConfig *server;
+
     num_retry_per_key = 0;
     CustomHash custom_hash;
     uint32_t partition_id = custom_hash(key) % num_partitions;
@@ -208,6 +216,8 @@ client::put(std::string key, std::string value, std::string &old_value) {
         }
 
         // Always try a new server for better load distribution
+    
+        server = getStub(key, is_retry);
         num_retry_per_key++;
         SPDLOG_LOGGER_INFO(logger, "Connecting to server {} for key {}", head_server->addr, key);
 
@@ -243,7 +253,8 @@ client::put(std::string key, std::string value, std::string &old_value) {
                 SPDLOG_LOGGER_WARN(logger, "Response timeout {}s", timeout);
             }
         }
-        SPDLOG_LOGGER_WARN(logger , "Retries limit reached for server {}", head_server->addr);
+        SPDLOG_LOGGER_WARN(logger , "Retries limit reached for server {}", server->addr);
+        is_retry = true;
     }
 
     SPDLOG_LOGGER_CRITICAL(logger , "Retries limit reached for all servers in config. We should never see this!!");

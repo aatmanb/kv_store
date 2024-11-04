@@ -75,8 +75,8 @@ private:
 
     std::unordered_map<std::string, int, CustomHash> key_to_partition;
 
-    const int req_retry_limit_per_server = 4;
-    const int req_retry_limit_per_key = 2;
+    const int req_retry_limit_per_server = 2;
+    const int req_retry_limit_per_key = 20;
     
     std::condition_variable condVar;
     std::mutex lock_for_rcvd_resp; 
