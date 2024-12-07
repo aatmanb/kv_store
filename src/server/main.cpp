@@ -8,6 +8,7 @@ ABSL_FLAG(uint16_t, port, -1, "Server port for the service");
 ABSL_FLAG(uint16_t, master_port, -1, "port of master node");
 ABSL_FLAG(std::string, log_dir, "", "log directory");
 ABSL_FLAG(std::string, db_dir, "", "db directory");
+ABSL_FLAG(std::string, config_file, "", "Config file");
 
 int main(int argc, char** argv) {
     std::cout.setf(std::ios::unitbuf);

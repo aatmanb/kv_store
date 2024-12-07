@@ -30,7 +30,7 @@ namespace key_value_store {
     }
 
     MasterImpl::MasterImpl(std::string &db_dir, std::string &config_path, std::string &log_dir) {
-        std::string log_file_name = log_dir + "spdlog_master" + ".log";
+        std::string log_file_name = log_dir + "/spdlog_master" + ".log";
         COUT << log_file_name << std::endl;
         
         spdlog::flush_every(std::chrono::milliseconds(1));

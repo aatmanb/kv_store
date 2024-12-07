@@ -100,7 +100,7 @@ namespace key_value_store {
         addr(addr),
         db_dir(db_dir) {
         
-        std::string log_file_name = log_dir + "spdlog_server_" + std::to_string(id) + ".log";
+        std::string log_file_name = log_dir + "/spdlog_server_" + std::to_string(id) + ".log";
         COUT << log_file_name << std::endl;
         
         // Logging example

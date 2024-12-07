@@ -1,48 +1,49 @@
-# Define the library name
-add_library(739kv SHARED
-    739kv.cc
-)
-
-# Include directories for public headers
-target_include_directories(739kv PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CLIENT_DIR}
-    ${CMAKE_UTILS_DIR}
-)
-
-set_target_properties(739kv PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
-)
-
-
 include_directories("${CMAKE_SOURCE_DIR}/bin")
 
-target_link_libraries(739kv
-                        pthread 
-                        kv_store_grpc_proto 
-                        boost_thread
-                        absl::check absl::flags absl::flags_parse absl::log
-                        client
-                        ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF})
-
-# Add pybind shared library
-include_directories("${CMAKE_SOURCE_DIR}/extern/pybind11/include")
-include_directories("/usr/include/python3.8")
-
-add_library(kv739_py SHARED wrapper.cpp)
-target_link_libraries(kv739_py PRIVATE 739kv)
-add_dependencies(kv739_py 739kv)
-
-set_target_properties(kv739_py PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
-)
+## Define the library name
+#add_library(739kv SHARED
+#    739kv.cc
+#)
+#
+## Include directories for public headers
+#target_include_directories(739kv PUBLIC
+#    ${CMAKE_CURRENT_SOURCE_DIR}
+#    ${CMAKE_CLIENT_DIR}
+#    ${CMAKE_UTILS_DIR}
+#)
+#
+#set_target_properties(739kv PROPERTIES
+#    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+#)
+#
+#
+#
+#target_link_libraries(739kv
+#                        pthread 
+#                        kv_store_grpc_proto 
+#                        boost_thread
+#                        absl::check absl::flags absl::flags_parse absl::log
+#                        client
+#                        ${_REFLECTION} ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF})
+#
+## Add pybind shared library
+#include_directories("${CMAKE_SOURCE_DIR}/extern/pybind11/include")
+#include_directories("/usr/include/python3.8")
+#
+#add_library(kv739_py SHARED wrapper.cpp)
+#target_link_libraries(kv739_py PRIVATE 739kv)
+#add_dependencies(kv739_py 739kv)
+#
+#set_target_properties(kv739_py PROPERTIES
+#    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+#)
 
 ## Add subdirectories
-add_subdirectory(client)
-add_subdirectory(server)
-add_subdirectory(utils)
 add_subdirectory(proto)
+add_subdirectory(utils)
+add_subdirectory(server)
 add_subdirectory(master)
+#add_subdirectory(client)
 
 
 # Copyright 2018 gRPC authors.
